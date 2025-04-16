@@ -7,8 +7,8 @@ import api from '../services/api';
 import { supabase } from '../services/supabaseClient';
 
 export default function Login() {
-  const [email, setEmail] = useState('demo@example.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [requires2FA, setRequires2FA] = useState(false);
@@ -23,15 +23,6 @@ export default function Login() {
     setError('');
 
     try {
-      // For demo purposes, we'll still allow direct login with demo/password
-      if (email === 'demo@example.com' && password === 'password') {
-        localStorage.setItem('token', 'demo-token');
-        localStorage.setItem('email', 'demo@example.com');
-        localStorage.setItem('name', 'Demo User');
-        setIsLoading(false);
-        navigate('/');
-        return;
-      }
 
       console.log('Attempting to login with Supabase:', { email });
 
@@ -82,24 +73,67 @@ export default function Login() {
 
   const handle2FAVerify = async (code) => {
     try {
+      console.log('Verifying 2FA code...');
+
       // First authenticate with email/password
+      console.log('Re-authenticating with email/password...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email: tempCredentials.email,
         password: tempCredentials.password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Authentication error:', error);
+        throw error;
+      }
 
-      // Verify 2FA token (you would need to implement this verification)
-      // This is a simplified example
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-2fa', {
-        body: {
-          token: code,
-          userId: data.user.id
-        }
+      console.log('Authentication successful');
+
+      // Get MFA factors
+      console.log('Getting MFA factors...');
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+
+      if (factorsError) {
+        console.error('Error getting MFA factors:', factorsError);
+        throw factorsError;
+      }
+
+      console.log('MFA factors:', factorsData);
+
+      // Find the TOTP factor
+      const totpFactor = factorsData.totp.find(f => f.factor_type === 'totp');
+      if (!totpFactor) {
+        console.error('No TOTP factor found');
+        throw new Error('No TOTP factor found');
+      }
+
+      // Create a challenge
+      console.log('Creating MFA challenge...');
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: totpFactor.id
       });
 
-      if (verifyError) throw verifyError;
+      if (challengeError) {
+        console.error('Error creating MFA challenge:', challengeError);
+        throw challengeError;
+      }
+
+      console.log('MFA challenge created:', challengeData);
+
+      // Verify the challenge
+      console.log('Verifying MFA challenge...');
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challengeData.id,
+        code: code
+      });
+
+      if (verifyError) {
+        console.error('MFA verification error:', verifyError);
+        throw verifyError;
+      }
+
+      console.log('MFA verification successful:', verifyData);
 
       // Store user session
       localStorage.setItem('token', data.session.access_token);

@@ -133,7 +133,34 @@ export default function TwoFactorSetup({ onSetupComplete }) {
       }
     } catch (err) {
       console.error('2FA setup error:', err);
-      setError(err.message || 'Failed to setup 2FA');
+
+      // Create a detailed error message
+      let errorMessage = 'Failed to setup 2FA';
+
+      if (err.message) {
+        errorMessage += ': ' + err.message;
+      }
+
+      if (err.stack) {
+        console.error('Error stack:', err.stack);
+      }
+
+      // Check if it's a network error
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        errorMessage = 'Network error: Please check your internet connection';
+      }
+
+      // Check if it's a CORS error
+      if (err.name === 'TypeError' && err.message.includes('CORS')) {
+        errorMessage = 'CORS error: The server blocked the request';
+      }
+
+      // Check if it's a permission error
+      if (err.message && err.message.includes('permission')) {
+        errorMessage = 'Permission error: You do not have permission to perform this action';
+      }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -222,12 +249,29 @@ export default function TwoFactorSetup({ onSetupComplete }) {
             </p>
             <div className="mt-5">
               <Button
-                onClick={handleSetup}
+                onClick={() => {
+                  console.log('Button clicked directly');
+                  handleSetup();
+                }}
                 disabled={isLoading}
                 className="w-full"
+                type="button"
               >
                 {isLoading ? 'Setting up...' : 'Set up 2FA'}
               </Button>
+              <div className="mt-2">
+                <button
+                  onClick={() => {
+                    console.log('Plain button clicked');
+                    handleSetup();
+                  }}
+                  disabled={isLoading}
+                  className="text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+                  type="button"
+                >
+                  Try alternate setup
+                </button>
+              </div>
             </div>
           </div>
         )}
