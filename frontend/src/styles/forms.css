@@ -1,0 +1,76 @@
+/* Custom form styles for light/dark mode */
+
+/* Base input styles */
+.form-input,
+.form-select,
+.form-checkbox,
+.form-radio {
+  @apply border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300;
+  @apply focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400;
+}
+
+/* Checkbox and radio specific styles */
+.form-checkbox,
+.form-radio {
+  @apply text-blue-500 dark:text-blue-400;
+  @apply border-gray-300 dark:border-gray-600;
+  @apply focus:ring-blue-500 dark:focus:ring-blue-400;
+  @apply bg-white dark:bg-gray-700;
+}
+
+/* Range slider styles */
+.form-range {
+  @apply h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer;
+}
+
+.form-range::-webkit-slider-thumb {
+  @apply appearance-none w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400;
+  @apply border-0 cursor-pointer;
+}
+
+.form-range::-moz-range-thumb {
+  @apply w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400;
+  @apply border-0 cursor-pointer;
+}
+
+.form-range:focus {
+  @apply outline-none;
+}
+
+.form-range:focus::-webkit-slider-thumb {
+  @apply bg-blue-600 dark:bg-blue-500;
+  @apply shadow-md;
+}
+
+.form-range:focus::-moz-range-thumb {
+  @apply bg-blue-600 dark:bg-blue-500;
+  @apply shadow-md;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  @apply relative inline-flex items-center cursor-pointer;
+}
+
+.toggle-switch-input {
+  @apply sr-only;
+}
+
+.toggle-switch-label {
+  @apply w-11 h-6 bg-gray-200 dark:bg-gray-700 rounded-full;
+  @apply after:content-[''] after:absolute after:top-[2px] after:left-[2px];
+  @apply after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5;
+  @apply after:transition-all after:duration-300;
+}
+
+.toggle-switch-input:checked + .toggle-switch-label {
+  @apply bg-blue-500 dark:bg-blue-400;
+}
+
+.toggle-switch-input:checked + .toggle-switch-label:after {
+  @apply translate-x-full border-white;
+}
+
+.toggle-switch-input:focus + .toggle-switch-label {
+  @apply ring-2 ring-blue-500 dark:ring-blue-400;
+}
