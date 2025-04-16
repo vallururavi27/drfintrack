@@ -44,16 +44,6 @@ export default function Register() {
     }
 
     try {
-      // For demo purposes, we'll just show a success message
-      if (formData.email === 'demo@example.com') {
-        setSuccess('Account created successfully! Please check your email to verify your account.');
-        setIsLoading(false);
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
-        return;
-      }
-
       // Register via API
       console.log('Registering user:', { name: formData.name, email: formData.email });
       const response = await api.auth.register({

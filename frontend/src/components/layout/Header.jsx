@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { setThemeMode, getThemeMode, isDarkMode, THEME_MODES } from '../../utils/themeUtils';
 import { useSearch } from '../../contexts/SearchContext';
 import { Bars3Icon, BellIcon, MagnifyingGlassIcon, UserCircleIcon, SunIcon, MoonIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { supabase } from '../../services/supabaseClient';
 
 export default function Header({ setIsMobileMenuOpen }) {
   const [darkModeActive, setDarkModeActive] = useState(isDarkMode());
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [username, setUsername] = useState('User');
   const userMenuRef = useRef(null);
   const navigate = useNavigate();
-  const username = localStorage.getItem('username') || 'User';
 
   // Use the search context
   const { searchQuery, setSearchQuery, handleSearch } = useSearch();
@@ -27,6 +28,43 @@ export default function Header({ setIsMobileMenuOpen }) {
 
       return () => mediaQuery.removeEventListener('change', updateThemeState);
     }
+  }, []);
+
+  // Fetch user information
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        // Try to get user info from Supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUsername(user.user_metadata?.name || user.email.split('@')[0] || 'User');
+        } else {
+          // Fall back to localStorage if no authenticated user
+          setUsername(localStorage.getItem('username') || localStorage.getItem('name') || 'User');
+        }
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+        // Fall back to localStorage if there's an error
+        setUsername(localStorage.getItem('username') || localStorage.getItem('name') || 'User');
+      }
+    };
+
+    fetchUserInfo();
+
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUsername(session.user.user_metadata?.name || session.user.email.split('@')[0] || 'User');
+      } else if (event === 'SIGNED_OUT') {
+        setUsername('User');
+      }
+    });
+
+    return () => {
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+    };
   }, []);
 
   // Handle click outside to close user menu

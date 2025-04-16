@@ -12,6 +12,7 @@ import {
   ReceiptPercentIcon,
   BuildingLibraryIcon
 } from '@heroicons/react/24/outline';
+import { supabase } from '../../services/supabaseClient';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
@@ -57,14 +58,29 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
 }
 
 function SidebarContent({ location }) {
-  const [userName, setUserName] = useState(localStorage.getItem('name') || 'User');
-  const [userEmail, setUserEmail] = useState(localStorage.getItem('email') || '');
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
-    // Update user info when localStorage changes
-    const updateUserInfo = () => {
-      setUserName(localStorage.getItem('name') || 'User');
-      setUserEmail(localStorage.getItem('email') || '');
+    // Update user info when localStorage changes or on component mount
+    const updateUserInfo = async () => {
+      try {
+        // Try to get user info from Supabase first
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUserName(user.user_metadata?.name || user.email.split('@')[0] || 'User');
+          setUserEmail(user.email || '');
+        } else {
+          // Fall back to localStorage if no authenticated user
+          setUserName(localStorage.getItem('name') || 'User');
+          setUserEmail(localStorage.getItem('email') || '');
+        }
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+        // Fall back to localStorage if there's an error
+        setUserName(localStorage.getItem('name') || 'User');
+        setUserEmail(localStorage.getItem('email') || '');
+      }
     };
 
     // Listen for storage events (when localStorage changes)
