@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   PlusIcon,
   PencilIcon,
@@ -8,11 +9,14 @@ import {
   CurrencyRupeeIcon,
   ChartPieIcon,
   BuildingLibraryIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  ArrowPathIcon,
+  XCircleIcon
 } from '@heroicons/react/24/outline';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ExportButton from '../components/ui/ExportButton';
+import { investmentService } from '../services/investmentService';
 import {
   LineChart,
   Line,
@@ -27,35 +31,166 @@ import {
   Cell
 } from 'recharts';
 
-// Empty investment data
-const investmentData = [];
-
-// Calculate portfolio summary
-const totalInvestment = investmentData.length > 0 ? investmentData.reduce((sum, investment) => sum + (investment.purchasePrice * investment.quantity), 0) : 0;
-const currentValue = investmentData.length > 0 ? investmentData.reduce((sum, investment) => sum + investment.value, 0) : 0;
-const totalReturn = currentValue - totalInvestment;
-const totalReturnPercentage = totalInvestment > 0 ? (totalReturn / totalInvestment) * 100 : 0;
-
-// Asset allocation data
-const assetAllocationData = [];
-
-// Category allocation data
-const categoryAllocationData = [];
-
-// Performance history data
-const performanceData = [];
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#a05195', '#d45087', '#f95d6a', '#ff7c43', '#ffa600'];
 
 export default function Investments() {
+  const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState('all');
+  const [selectedPeriod, setSelectedPeriod] = useState('1y');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [currentInvestment, setCurrentInvestment] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    investment_type: 'Stocks',
+    category_id: '',
+    initial_value: 0,
+    current_value: 0,
+    current_units: 0,
+    start_date: new Date().toISOString().split('T')[0],
+    notes: '',
+    color: '#3b82f6'
+  });
+  const [formErrors, setFormErrors] = useState({});
+
+  // Fetch investments
+  const {
+    data: investments = [],
+    isLoading: isLoadingInvestments,
+    error: investmentsError,
+    refetch: refetchInvestments
+  } = useQuery({
+    queryKey: ['investments'],
+    queryFn: investmentService.getInvestments
+  });
+
+  // Fetch investment categories
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories
+  } = useQuery({
+    queryKey: ['investmentCategories'],
+    queryFn: investmentService.getInvestmentCategories
+  });
+
+  // Fetch investment stats
+  const {
+    data: stats,
+    isLoading: isLoadingStats,
+    error: statsError,
+    refetch: refetchStats
+  } = useQuery({
+    queryKey: ['investmentStats'],
+    queryFn: investmentService.getInvestmentStats
+  });
+
+  // Create investment mutation
+  const createMutation = useMutation({
+    mutationFn: investmentService.createInvestment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['investments'] });
+      queryClient.invalidateQueries({ queryKey: ['investmentStats'] });
+      setShowAddModal(false);
+    }
+  });
+
+  // Update investment mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => investmentService.updateInvestment(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['investments'] });
+      queryClient.invalidateQueries({ queryKey: ['investmentStats'] });
+      setShowAddModal(false);
+      setCurrentInvestment(null);
+    }
+  });
+
+  // Delete investment mutation
+  const deleteMutation = useMutation({
+    mutationFn: investmentService.deleteInvestment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['investments'] });
+      queryClient.invalidateQueries({ queryKey: ['investmentStats'] });
+    }
+  });
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([refetchInvestments(), refetchStats()]);
+    setIsRefreshing(false);
+  };
+
+  // Handle form submission
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // Validate form
+    const errors = {};
+    if (!formData.name.trim()) errors.name = 'Name is required';
+    if (!formData.investment_type) errors.investment_type = 'Type is required';
+    if (!formData.category_id) errors.category_id = 'Category is required';
+    if (!formData.initial_value || parseFloat(formData.initial_value) <= 0) errors.initial_value = 'Valid initial value is required';
+    if (!formData.start_date) errors.start_date = 'Start date is required';
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    if (currentInvestment) {
+      updateMutation.mutate({
+        id: currentInvestment.id,
+        data: formData
+      });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  // Handle delete investment
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this investment? This action cannot be undone.')) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  // Prepare data for charts
+  const assetAllocationData = [];
+  const categoryAllocationData = [];
+  const performanceData = [];
+
+  // Calculate portfolio summary
+  const totalInvestment = stats ? stats.totalInvested : 0;
+  const currentValue = stats ? stats.totalCurrentValue : 0;
+  const totalReturn = stats ? stats.totalGain : 0;
+  const totalReturnPercentage = stats ? stats.gainPercentage : 0;
+
+  // Prepare asset allocation data
+  if (stats && stats.byType) {
+    Object.entries(stats.byType).forEach(([type, data]) => {
+      assetAllocationData.push({
+        name: type,
+        value: data.currentValue
+      });
+    });
+  }
+
+  // Prepare category allocation data
+  if (stats && stats.byCategory) {
+    Object.entries(stats.byCategory).forEach(([category, data]) => {
+      categoryAllocationData.push({
+        name: category,
+        value: data.currentValue,
+        color: data.color
+      });
+    });
+  }
 
   // Filter investments based on type
   const filteredInvestments = selectedType === 'all'
-    ? investmentData
-    : investmentData.filter(investment => investment.type === selectedType);
+    ? investments
+    : investments.filter(investment => investment.investment_type === selectedType);
 
   return (
     <div className="space-y-6">
@@ -63,17 +198,64 @@ export default function Investments() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Investment Portfolio</h1>
         <div className="mt-4 sm:mt-0 flex space-x-2">
           <ExportButton
-            data={investmentData}
+            data={investments}
             type="investments"
             title="Export Portfolio"
             options={{ fileName: 'investment_portfolio' }}
           />
-          <Button className="flex items-center" onClick={() => setShowAddModal(true)}>
+          <Button className="flex items-center" onClick={() => {
+            setCurrentInvestment(null);
+            setFormData({
+              name: '',
+              investment_type: 'Stocks',
+              category_id: '',
+              initial_value: 0,
+              current_value: 0,
+              current_units: 0,
+              start_date: new Date().toISOString().split('T')[0],
+              notes: '',
+              color: '#3b82f6'
+            });
+            setFormErrors({});
+            setShowAddModal(true);
+          }}>
             <PlusIcon className="mr-2 h-5 w-5" />
             Add Investment
           </Button>
+          <button
+            className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <ArrowPathIcon className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
       </div>
+
+      {/* Loading state */}
+      {(isLoadingInvestments || isLoadingStats) && (
+        <Card>
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <span className="ml-2 text-gray-600 dark:text-gray-300">Loading investment data...</span>
+          </div>
+        </Card>
+      )}
+
+      {/* Error state */}
+      {(investmentsError || statsError) && (
+        <Card className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <div className="flex items-center text-red-700 dark:text-red-400">
+            <XCircleIcon className="h-5 w-5 mr-2" />
+            <span>Error loading investment data: {investmentsError?.message || statsError?.message}</span>
+            <Button onClick={handleRefresh} size="sm" className="ml-auto">
+              <ArrowPathIcon className="h-4 w-4 mr-1" />
+              Retry
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -465,9 +647,9 @@ export default function Investments() {
             <div className="inline-block transform overflow-hidden rounded-lg bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-gray-800 sm:my-8 sm:w-full sm:max-w-lg sm:p-6 sm:align-middle">
               <div>
                 <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">
-                  Add New Investment
+                  {currentInvestment ? 'Edit Investment' : 'Add New Investment'}
                 </h3>
-                <form className="mt-4">
+                <form className="mt-4" onSubmit={handleSubmit}>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -476,90 +658,169 @@ export default function Investments() {
                       <input
                         type="text"
                         id="name"
-                        className="input mt-1 w-full"
+                        name="name"
+                        className={`input mt-1 w-full ${formErrors.name ? 'border-red-500' : ''}`}
                         placeholder="e.g., HDFC Bank"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
                       />
+                      {formErrors.name && <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>}
                     </div>
 
                     <div>
-                      <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label htmlFor="investment_type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Type
                       </label>
                       <select
-                        id="type"
-                        className="input mt-1 w-full"
+                        id="investment_type"
+                        name="investment_type"
+                        className={`input mt-1 w-full ${formErrors.investment_type ? 'border-red-500' : ''}`}
+                        value={formData.investment_type}
+                        onChange={(e) => setFormData({ ...formData, investment_type: e.target.value })}
+                        required
                       >
+                        <option value="">Select Type</option>
                         <option value="Stocks">Stocks</option>
                         <option value="Mutual Fund">Mutual Fund</option>
                         <option value="Fixed Deposit">Fixed Deposit</option>
                         <option value="ETF">ETF</option>
                         <option value="PPF">PPF</option>
+                        <option value="Gold">Gold</option>
+                        <option value="Real Estate">Real Estate</option>
+                        <option value="Bonds">Bonds</option>
                         <option value="Other">Other</option>
                       </select>
+                      {formErrors.investment_type && <p className="mt-1 text-xs text-red-500">{formErrors.investment_type}</p>}
                     </div>
 
                     <div>
-                      <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Category
                       </label>
-                      <input
-                        type="text"
-                        id="category"
-                        className="input mt-1 w-full"
-                        placeholder="e.g., Banking, IT, Equity"
-                      />
+                      <select
+                        id="category_id"
+                        name="category_id"
+                        className={`input mt-1 w-full ${formErrors.category_id ? 'border-red-500' : ''}`}
+                        value={formData.category_id}
+                        onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                        required
+                      >
+                        <option value="">Select Category</option>
+                        {categories.map(category => (
+                          <option key={category.id} value={category.id}>{category.name}</option>
+                        ))}
+                      </select>
+                      {formErrors.category_id && <p className="mt-1 text-xs text-red-500">{formErrors.category_id}</p>}
                     </div>
 
                     <div>
-                      <label htmlFor="purchase-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Purchase Date
+                      <label htmlFor="start_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Start Date
                       </label>
                       <input
                         type="date"
-                        id="purchase-date"
-                        className="input mt-1 w-full"
+                        id="start_date"
+                        name="start_date"
+                        className={`input mt-1 w-full ${formErrors.start_date ? 'border-red-500' : ''}`}
+                        value={formData.start_date}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                        required
                       />
+                      {formErrors.start_date && <p className="mt-1 text-xs text-red-500">{formErrors.start_date}</p>}
                     </div>
 
                     <div>
-                      <label htmlFor="purchase-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Purchase Price (₹)
+                      <label htmlFor="initial_value" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Initial Value
                       </label>
-                      <input
-                        type="number"
-                        id="purchase-price"
-                        className="input mt-1 w-full"
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                      />
+                      <div className="relative mt-1 rounded-md shadow-sm">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                          <span className="text-gray-500 sm:text-sm">₹</span>
+                        </div>
+                        <input
+                          type="number"
+                          id="initial_value"
+                          name="initial_value"
+                          className={`input pl-7 w-full ${formErrors.initial_value ? 'border-red-500' : ''}`}
+                          placeholder="0.00"
+                          step="0.01"
+                          min="0"
+                          value={formData.initial_value}
+                          onChange={(e) => setFormData({ ...formData, initial_value: e.target.value })}
+                          required
+                        />
+                      </div>
+                      {formErrors.initial_value && <p className="mt-1 text-xs text-red-500">{formErrors.initial_value}</p>}
                     </div>
 
                     <div>
-                      <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Quantity
+                      <label htmlFor="current_value" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Current Value
+                      </label>
+                      <div className="relative mt-1 rounded-md shadow-sm">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                          <span className="text-gray-500 sm:text-sm">₹</span>
+                        </div>
+                        <input
+                          type="number"
+                          id="current_value"
+                          name="current_value"
+                          className="input pl-7 w-full"
+                          placeholder="0.00"
+                          step="0.01"
+                          min="0"
+                          value={formData.current_value}
+                          onChange={(e) => setFormData({ ...formData, current_value: e.target.value })}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">Leave empty to use initial value</p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="current_units" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Units/Quantity
                       </label>
                       <input
                         type="number"
-                        id="quantity"
+                        id="current_units"
+                        name="current_units"
                         className="input mt-1 w-full"
                         placeholder="0"
+                        step="0.01"
                         min="0"
+                        value={formData.current_units}
+                        onChange={(e) => setFormData({ ...formData, current_units: e.target.value })}
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="current-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Current Price (₹)
+                      <label htmlFor="color" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Color
                       </label>
                       <input
-                        type="number"
-                        id="current-price"
-                        className="input mt-1 w-full"
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
+                        type="color"
+                        id="color"
+                        name="color"
+                        className="input mt-1 w-full h-10"
+                        value={formData.color}
+                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                       />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Notes (Optional)
+                      </label>
+                      <textarea
+                        id="notes"
+                        name="notes"
+                        className="input mt-1 w-full"
+                        rows="2"
+                        placeholder="Additional details about this investment"
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      ></textarea>
                     </div>
                   </div>
 
@@ -568,11 +829,22 @@ export default function Investments() {
                       type="button"
                       variant="outline"
                       onClick={() => setShowAddModal(false)}
+                      disabled={createMutation.isPending || updateMutation.isPending}
                     >
                       Cancel
                     </Button>
-                    <Button type="submit">
-                      Add Investment
+                    <Button
+                      type="submit"
+                      disabled={createMutation.isPending || updateMutation.isPending}
+                    >
+                      {createMutation.isPending || updateMutation.isPending ? (
+                        <>
+                          <div className="animate-spin h-4 w-4 mr-2 border-b-2 border-white rounded-full"></div>
+                          {currentInvestment ? 'Saving...' : 'Adding...'}
+                        </>
+                      ) : (
+                        currentInvestment ? 'Save Changes' : 'Add Investment'
+                      )}
                     </Button>
                   </div>
                 </form>

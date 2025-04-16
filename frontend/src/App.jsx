@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { initializeTheme } from './utils/themeUtils'
 import { SearchProvider } from './contexts/SearchContext'
+import { AuthProvider } from './contexts/AuthContext'
 import { initializeDefaultData } from './services/dataService'
 
 // Layout
@@ -16,6 +17,7 @@ import Analytics from './pages/Analytics'
 import Investments from './pages/Investments'
 import SettingsNew from './pages/SettingsNew'
 import Banking from './pages/Banking'
+import BankAccounts from './pages/BankAccounts'
 import Expenses from './pages/Expenses'
 import Income from './pages/Income'
 import Reports from './pages/Reports'
@@ -78,6 +80,7 @@ function App() {
           }>
             <Route path="/" element={<Dashboard />} />
             <Route path="/banking" element={<Banking />} />
+            <Route path="/banking/accounts" element={<BankAccounts />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/income" element={<Income />} />

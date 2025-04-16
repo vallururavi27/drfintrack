@@ -3,234 +3,264 @@ import { supabase } from './supabaseClient';
 export const transactionService = {
   // Get all transactions
   async getTransactions() {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        bank_accounts(name)
-      `)
-      .order('transaction_date', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          bank_accounts(id, account_name, bank_name),
+          categories(id, name, type, icon_name, color)
+        `)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching transactions:', error.message);
+      throw error;
+    }
   },
-  
+
   // Get transactions by date range
   async getTransactionsByDateRange(startDate, endDate) {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        bank_accounts(name)
-      `)
-      .gte('transaction_date', startDate)
-      .lte('transaction_date', endDate)
-      .order('transaction_date', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          bank_accounts(id, account_name, bank_name),
+          categories(id, name, type, icon_name, color)
+        `)
+        .gte('transaction_date', startDate)
+        .lte('transaction_date', endDate)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching transactions by date range:', error.message);
+      throw error;
+    }
   },
-  
+
   // Get transactions by category
-  async getTransactionsByCategory(category) {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        bank_accounts(name)
-      `)
-      .eq('category', category)
-      .order('transaction_date', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+  async getTransactionsByCategory(categoryId) {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          bank_accounts(id, account_name, bank_name),
+          categories(id, name, type, icon_name, color)
+        `)
+        .eq('category_id', categoryId)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching transactions by category:', error.message);
+      throw error;
+    }
   },
-  
+
+  // Get transactions by account
+  async getTransactionsByAccount(accountId) {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          bank_accounts(id, account_name, bank_name),
+          categories(id, name, type, icon_name, color)
+        `)
+        .eq('account_id', accountId)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching transactions by account:', error.message);
+      throw error;
+    }
+  },
+
   // Get transactions by type (expense/income)
   async getTransactionsByType(type) {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        bank_accounts(name)
-      `)
-      .eq('transaction_type', type)
-      .order('transaction_date', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          bank_accounts(id, account_name, bank_name),
+          categories(id, name, type, icon_name, color)
+        `)
+        .eq('type', type)
+        .order('transaction_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching transactions by type:', error.message);
+      throw error;
+    }
   },
-  
+
   // Add a new transaction
   async addTransaction(transactionData) {
-    const user = supabase.auth.user();
-    if (!user) throw new Error('User not authenticated');
-    
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert([{
-        ...transactionData,
-        user_id: user.id
-      }]);
-    
-    if (error) throw error;
-    
-    // Update account balance
-    if (transactionData.account_id) {
-      const { data: account } = await supabase
-        .from('bank_accounts')
-        .select('balance')
-        .eq('id', transactionData.account_id)
-        .single();
-      
-      const newBalance = parseFloat(account.balance) + 
-        (transactionData.transaction_type === 'income' ? 
-          parseFloat(transactionData.amount) : 
-          -parseFloat(transactionData.amount));
-      
-      await supabase
-        .from('bank_accounts')
-        .update({ balance: newBalance })
-        .eq('id', transactionData.account_id);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([{
+          ...transactionData,
+          user_id: userData.user.id,
+          created_at: new Date().toISOString()
+        }])
+        .select();
+
+      if (error) throw error;
+
+      // The account balance will be updated automatically by the database trigger
+      return data[0];
+    } catch (error) {
+      console.error('Error adding transaction:', error.message);
+      throw error;
     }
-    
-    return data[0];
   },
-  
+
   // Update a transaction
   async updateTransaction(id, transactionData) {
-    // First get the original transaction to calculate balance adjustment
-    const { data: originalTransaction } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    // Update the transaction
-    const { data, error } = await supabase
-      .from('transactions')
-      .update(transactionData)
-      .match({ id });
-    
-    if (error) throw error;
-    
-    // Update account balance if amount or type changed
-    if (originalTransaction.account_id && 
-        (originalTransaction.amount !== transactionData.amount || 
-         originalTransaction.transaction_type !== transactionData.transaction_type)) {
-      
-      // Remove the effect of the original transaction
-      let balanceAdjustment = 0;
-      
-      if (originalTransaction.transaction_type === 'income') {
-        balanceAdjustment -= parseFloat(originalTransaction.amount);
-      } else {
-        balanceAdjustment += parseFloat(originalTransaction.amount);
-      }
-      
-      // Add the effect of the new transaction
-      if (transactionData.transaction_type === 'income') {
-        balanceAdjustment += parseFloat(transactionData.amount);
-      } else {
-        balanceAdjustment -= parseFloat(transactionData.amount);
-      }
-      
-      // Update the account balance
-      const { data: account } = await supabase
-        .from('bank_accounts')
-        .select('balance')
-        .eq('id', originalTransaction.account_id)
-        .single();
-      
-      const newBalance = parseFloat(account.balance) + balanceAdjustment;
-      
-      await supabase
-        .from('bank_accounts')
-        .update({ balance: newBalance })
-        .eq('id', originalTransaction.account_id);
+    try {
+      // Update the transaction
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({
+          ...transactionData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+
+      // The account balance will be updated automatically by the database trigger
+      return data[0];
+    } catch (error) {
+      console.error('Error updating transaction:', error.message);
+      throw error;
     }
-    
-    return data[0];
   },
-  
+
   // Delete a transaction
   async deleteTransaction(id) {
-    // First get the transaction to adjust the account balance
-    const { data: transaction } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    // Delete the transaction
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .match({ id });
-    
-    if (error) throw error;
-    
-    // Update account balance
-    if (transaction.account_id) {
-      const { data: account } = await supabase
-        .from('bank_accounts')
-        .select('balance')
-        .eq('id', transaction.account_id)
-        .single();
-      
-      const balanceAdjustment = transaction.transaction_type === 'income' ? 
-        -parseFloat(transaction.amount) : 
-        parseFloat(transaction.amount);
-      
-      const newBalance = parseFloat(account.balance) + balanceAdjustment;
-      
-      await supabase
-        .from('bank_accounts')
-        .update({ balance: newBalance })
-        .eq('id', transaction.account_id);
+    try {
+      // Delete the transaction
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // The account balance will be updated automatically by the database trigger
+      return true;
+    } catch (error) {
+      console.error('Error deleting transaction:', error.message);
+      throw error;
     }
   },
-  
+
   // Get transaction statistics
   async getTransactionStats(period = 'month') {
-    let startDate;
-    const now = new Date();
-    
-    if (period === 'month') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (period === 'year') {
-      startDate = new Date(now.getFullYear(), 0, 1);
-    } else if (period === '6months') {
-      startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-    }
-    
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('amount, transaction_type, category')
-      .gte('transaction_date', startDate.toISOString().split('T')[0]);
-    
-    if (error) throw error;
-    
-    const stats = {
-      totalIncome: 0,
-      totalExpenses: 0,
-      categories: {}
-    };
-    
-    data.forEach(transaction => {
-      if (transaction.transaction_type === 'income') {
-        stats.totalIncome += parseFloat(transaction.amount);
-      } else {
-        stats.totalExpenses += parseFloat(transaction.amount);
-        
-        // Track category totals
-        if (!stats.categories[transaction.category]) {
-          stats.categories[transaction.category] = 0;
-        }
-        stats.categories[transaction.category] += parseFloat(transaction.amount);
+    try {
+      let startDate;
+      const now = new Date();
+
+      if (period === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (period === 'year') {
+        startDate = new Date(now.getFullYear(), 0, 1);
+      } else if (period === '6months') {
+        startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+      } else if (period === 'all') {
+        startDate = new Date(2000, 0, 1); // Far in the past to get all transactions
       }
-    });
-    
-    return stats;
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          amount,
+          type,
+          category_id,
+          categories(name, type, color)
+        `)
+        .gte('transaction_date', startDate.toISOString().split('T')[0]);
+
+      if (error) throw error;
+
+      const stats = {
+        totalIncome: 0,
+        totalExpenses: 0,
+        categories: {},
+        byMonth: {}
+      };
+
+      data.forEach(transaction => {
+        const amount = parseFloat(transaction.amount);
+        const categoryName = transaction.categories?.name || 'Uncategorized';
+        const categoryColor = transaction.categories?.color || '#808080';
+
+        // Calculate income/expense totals
+        if (transaction.type === 'income') {
+          stats.totalIncome += amount;
+        } else {
+          stats.totalExpenses += amount;
+
+          // Track category totals
+          if (!stats.categories[categoryName]) {
+            stats.categories[categoryName] = {
+              total: 0,
+              color: categoryColor
+            };
+          }
+          stats.categories[categoryName].total += amount;
+        }
+
+        // Track monthly data
+        const transactionDate = new Date(transaction.transaction_date);
+        const monthKey = `${transactionDate.getFullYear()}-${String(transactionDate.getMonth() + 1).padStart(2, '0')}`;
+
+        if (!stats.byMonth[monthKey]) {
+          stats.byMonth[monthKey] = {
+            income: 0,
+            expenses: 0,
+            month: transactionDate.toLocaleString('default', { month: 'short' }),
+            year: transactionDate.getFullYear()
+          };
+        }
+
+        if (transaction.type === 'income') {
+          stats.byMonth[monthKey].income += amount;
+        } else {
+          stats.byMonth[monthKey].expenses += amount;
+        }
+      });
+
+      // Convert byMonth to array and sort by date
+      stats.monthlyData = Object.entries(stats.byMonth)
+        .map(([key, data]) => ({
+          ...data,
+          key
+        }))
+        .sort((a, b) => a.key.localeCompare(b.key));
+
+      return stats;
+    } catch (error) {
+      console.error('Error getting transaction stats:', error.message);
+      throw error;
+    }
   }
 };
