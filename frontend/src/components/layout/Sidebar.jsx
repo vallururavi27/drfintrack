@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   HomeIcon,
@@ -57,6 +57,27 @@ export default function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }) {
 }
 
 function SidebarContent({ location }) {
+  const [userName, setUserName] = useState(localStorage.getItem('name') || 'User');
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('email') || '');
+
+  useEffect(() => {
+    // Update user info when localStorage changes
+    const updateUserInfo = () => {
+      setUserName(localStorage.getItem('name') || 'User');
+      setUserEmail(localStorage.getItem('email') || '');
+    };
+
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener('storage', updateUserInfo);
+
+    // Also update on mount
+    updateUserInfo();
+
+    return () => {
+      window.removeEventListener('storage', updateUserInfo);
+    };
+  }, []);
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto pt-16 pb-4 text-gray-800 dark:text-white">
       <nav className="mt-5 flex-1 space-y-1 px-2">
@@ -96,8 +117,8 @@ function SidebarContent({ location }) {
             </div>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium text-gray-800 dark:text-white">Demo User</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">demo@example.com</p>
+            <p className="text-sm font-medium text-gray-800 dark:text-white">{userName}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{userEmail}</p>
           </div>
         </div>
       </div>
