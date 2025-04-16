@@ -17,6 +17,7 @@ import Button from '../components/ui/Button';
 import ColorPicker from '../components/ui/ColorPicker';
 import { getCustomColors, saveCustomColors, resetCustomColors, DEFAULT_COLORS } from '../utils/themeUtils';
 import { exportBackup, importBackup, clearAllData } from '../services/dataService';
+import { supabase } from '../services/supabaseClient';
 
 export default function Settings() {
   // Theme settings
@@ -29,11 +30,12 @@ export default function Settings() {
   const [showColorSettings, setShowColorSettings] = useState(false);
 
   // Profile settings
-  const [profileImage, setProfileImage] = useState('/profile_ravi.jpg');
-  const [spouseProfileImage, setSpouseProfileImage] = useState('/profile_spouse.jpg');
-  const [name, setName] = useState('Dr. Ravi');
-  const [spouseName, setSpouseName] = useState('Mrs. Ravi');
-  const [email, setEmail] = useState('vallururavi.ai@gmail.com');
+  const [profileImage, setProfileImage] = useState('/default-avatar.png');
+  const [spouseProfileImage, setSpouseProfileImage] = useState('/default-avatar.png');
+  const [name, setName] = useState('');
+  const [spouseName, setSpouseName] = useState('');
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Notification settings
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -198,6 +200,53 @@ export default function Settings() {
     }
   };
 
+  // Fetch user profile data
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      setIsLoading(true);
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.log('No authenticated user found');
+          setIsLoading(false);
+          return;
+        }
+
+        // Set email from user data
+        setEmail(user.email || '');
+
+        // Set name from user metadata
+        if (user.user_metadata?.name) {
+          setName(user.user_metadata.name);
+        } else {
+          // Use email username as fallback
+          setName(user.email.split('@')[0]);
+        }
+
+        // Fetch profile data from profiles table
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && profileData) {
+          // Update profile data if available
+          if (profileData.avatar_url) setProfileImage(profileData.avatar_url);
+          if (profileData.spouse_name) setSpouseName(profileData.spouse_name);
+          if (profileData.spouse_avatar_url) setSpouseProfileImage(profileData.spouse_avatar_url);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -208,7 +257,13 @@ export default function Settings() {
       <Card>
         <h2 className="text-md font-medium text-gray-900 dark:text-white mb-3">Profile Settings</h2>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+            <span className="ml-2 text-gray-600 dark:text-gray-400">Loading profile data...</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {/* Primary Profile */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">Primary Profile</h3>
@@ -341,6 +396,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        )}
       </Card>
 
       {/* Appearance Settings */}
