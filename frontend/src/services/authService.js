@@ -195,21 +195,175 @@ export const authService = {
     if (error) throw error;
   },
 
+  // Setup Two Factor Authentication (for Supabase Auth)
+  async setupTwoFactorAuth() {
+    try {
+      console.log('Setting up 2FA with Supabase...');
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Enroll a new factor
+      console.log('Enrolling new TOTP factor...');
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: 'totp'
+      });
+
+      console.log('MFA enroll response:', { data, error });
+
+      if (error) {
+        console.error('MFA enroll error:', error);
+        throw error;
+      }
+
+      if (!data || !data.totp) {
+        console.error('Invalid MFA enroll response:', data);
+        throw new Error('Invalid response from server');
+      }
+
+      console.log('MFA factor enrolled successfully');
+      return {
+        id: data.id,
+        secret: data.totp.secret,
+        qr: data.totp.qr_code
+      };
+    } catch (error) {
+      console.error('Error setting up 2FA:', error);
+      throw error;
+    }
+  },
+
+  // Verify Two Factor Authentication
+  async verifyTwoFactorAuth(factorId, code) {
+    try {
+      console.log('Verifying 2FA with Supabase...');
+      console.log('Creating challenge for factor ID:', factorId);
+
+      const { data, error } = await supabase.auth.mfa.challenge({
+        factorId: factorId
+      });
+
+      console.log('MFA challenge response:', { data, error });
+
+      if (error) {
+        console.error('MFA challenge error:', error);
+        throw error;
+      }
+
+      if (!data || !data.id) {
+        console.error('Invalid MFA challenge response:', data);
+        throw new Error('Invalid challenge response from server');
+      }
+
+      const challengeId = data.id;
+      console.log('Challenge created with ID:', challengeId);
+
+      console.log('Verifying code for challenge ID:', challengeId);
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: factorId,
+        challengeId: challengeId,
+        code: code
+      });
+
+      console.log('MFA verify response:', { verifyData, verifyError });
+
+      if (verifyError) {
+        console.error('MFA verify error:', verifyError);
+        throw verifyError;
+      }
+
+      console.log('MFA verification successful');
+      return { isValid: true };
+    } catch (error) {
+      console.error('Error verifying 2FA:', error);
+      throw error;
+    }
+  },
+
+  // Get Two Factor Factors
+  async getTwoFactorFactors() {
+    try {
+      console.log('Getting 2FA factors from Supabase...');
+      const { data, error } = await supabase.auth.mfa.listFactors();
+
+      console.log('MFA list factors response:', { data, error });
+
+      if (error) {
+        console.error('MFA list factors error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        console.error('Invalid MFA list factors response');
+        return [];
+      }
+
+      console.log('MFA factors retrieved successfully');
+      return data.totp || [];
+    } catch (error) {
+      console.error('Error getting 2FA factors:', error);
+      throw error;
+    }
+  },
+
   // Disable 2FA
   async disable2FA() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    try {
+      console.log('Disabling 2FA in profile...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('User not authenticated');
+        throw new Error('User not authenticated');
+      }
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        two_factor_enabled: false,
-        two_factor_secret: null,
-        backup_codes: null
-      })
-      .eq('id', user.id);
+      console.log('Updating profile for user:', user.id);
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          two_factor_enabled: false,
+          two_factor_secret: null,
+          backup_codes: null
+        })
+        .eq('id', user.id);
 
-    if (error) throw error;
+      console.log('Profile update response:', { error });
+
+      if (error) {
+        console.error('Error updating profile:', error);
+        throw error;
+      }
+
+      console.log('Profile updated successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Error disabling 2FA in profile:', error);
+      throw error;
+    }
+  },
+
+  // Disable Two Factor Authentication (for Supabase Auth)
+  async disableTwoFactorAuth(factorId) {
+    try {
+      console.log('Disabling 2FA with Supabase Auth...');
+      console.log('Unenrolling factor ID:', factorId);
+
+      const { error } = await supabase.auth.mfa.unenroll({
+        factorId: factorId
+      });
+
+      console.log('MFA unenroll response:', { error });
+
+      if (error) {
+        console.error('MFA unenroll error:', error);
+        throw error;
+      }
+
+      console.log('MFA factor unenrolled successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      throw error;
+    }
   },
 
   // Verify email

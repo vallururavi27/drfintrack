@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
-        
+
         if (event === 'SIGNED_IN' && session) {
           const userData = await authService.getCurrentUser();
           setUser(userData);
@@ -72,23 +72,67 @@ export function AuthProvider({ children }) {
 
   const loginWith2FA = async (email, password, code) => {
     try {
+      console.log('Logging in with 2FA...');
+
       // First authenticate with email/password
+      console.log('Authenticating with email/password...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Email/password authentication error:', error);
+        throw error;
+      }
 
-      // Verify 2FA token
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-2fa', {
-        body: {
-          token: code,
-          userId: data.user.id
-        }
+      console.log('Email/password authentication successful');
+
+      // Get MFA factors
+      console.log('Getting MFA factors...');
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+
+      if (factorsError) {
+        console.error('Error getting MFA factors:', factorsError);
+        throw factorsError;
+      }
+
+      console.log('MFA factors:', factorsData);
+
+      // Find the TOTP factor
+      const totpFactor = factorsData.totp.find(f => f.factor_type === 'totp');
+      if (!totpFactor) {
+        console.error('No TOTP factor found');
+        throw new Error('No TOTP factor found');
+      }
+
+      // Create a challenge
+      console.log('Creating MFA challenge...');
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: totpFactor.id
       });
 
-      if (verifyError) throw verifyError;
+      if (challengeError) {
+        console.error('Error creating MFA challenge:', challengeError);
+        throw challengeError;
+      }
+
+      console.log('MFA challenge created:', challengeData);
+
+      // Verify the challenge
+      console.log('Verifying MFA challenge...');
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challengeData.id,
+        code: code
+      });
+
+      if (verifyError) {
+        console.error('MFA verification error:', verifyError);
+        throw verifyError;
+      }
+
+      console.log('MFA verification successful:', verifyData);
 
       setUser(data.user);
       setIsAuthenticated(true);

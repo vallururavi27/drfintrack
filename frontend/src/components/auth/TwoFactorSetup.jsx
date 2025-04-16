@@ -34,25 +34,105 @@ export default function TwoFactorSetup({ onSetupComplete }) {
     return codes;
   };
 
+  useEffect(() => {
+    // Check if the button is visible and log it
+    console.log('TwoFactorSetup component mounted');
+
+    // Test Supabase connection
+    const testSupabase = async () => {
+      try {
+        console.log('Testing Supabase connection...');
+        const { data, error } = await supabase.auth.getSession();
+        console.log('Supabase session test:', { data, error });
+      } catch (err) {
+        console.error('Error testing Supabase connection:', err);
+      }
+    };
+
+    testSupabase();
+  }, []);
+
   const handleSetup = async () => {
+    console.log('Setup button clicked');
     setIsLoading(true);
     setError('');
 
     try {
+      console.log('Starting 2FA setup...');
+
       // Generate backup codes
       const codes = generateBackupCodes();
       setBackupCodes(codes);
+      console.log('Generated backup codes');
+
+      // Check if user is authenticated
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        console.log('Current user response:', { data, error });
+
+        if (error) {
+          console.error('Error getting user:', error);
+          throw error;
+        }
+
+        if (!data?.user) {
+          console.error('No user found in response');
+          throw new Error('User not authenticated');
+        }
+
+        console.log('Current user:', data.user);
+      } catch (userError) {
+        console.error('Error checking authentication:', userError);
+        throw new Error('Failed to verify authentication: ' + userError.message);
+      }
 
       // Set up 2FA with Supabase
-      const { data, error } = await authService.setupTwoFactorAuth();
+      console.log('Calling setupTwoFactorAuth...');
+      try {
+        // Try direct Supabase MFA API call first to test if it's working
+        console.log('Testing direct Supabase MFA API call...');
+        try {
+          const { data: directData, error: directError } = await supabase.auth.mfa.enroll({
+            factorType: 'totp'
+          });
+          console.log('Direct MFA API call result:', { data: directData, error: directError });
 
-      if (error) throw error;
+          if (directError) {
+            console.error('Direct MFA API call error:', directError);
+          } else if (directData) {
+            console.log('Direct MFA API call successful');
+            // Use the direct result
+            setSecret(directData.totp.secret);
+            setQrCode(directData.totp.qr_code);
+            setFactorId(directData.id);
+            setStep(2);
+            console.log('2FA setup successful using direct API call, moved to step 2');
+            return; // Exit early since we succeeded
+          }
+        } catch (directCallError) {
+          console.error('Error in direct MFA API call:', directCallError);
+        }
 
-      setSecret(data.secret);
-      setQrCode(data.qr);
-      setFactorId(data.id);
-      setStep(2);
+        // Fall back to using authService if direct call fails
+        console.log('Falling back to authService.setupTwoFactorAuth()...');
+        const result = await authService.setupTwoFactorAuth();
+        console.log('Setup 2FA result from authService:', result);
+
+        if (!result || !result.id) {
+          throw new Error('Failed to setup 2FA: Invalid response from server');
+        }
+
+        setSecret(result.secret);
+        setQrCode(result.qr);
+        setFactorId(result.id);
+        setStep(2);
+        console.log('2FA setup successful, moved to step 2');
+      } catch (setupError) {
+        console.error('Error in setupTwoFactorAuth:', setupError);
+        throw setupError;
+      }
     } catch (err) {
+      console.error('2FA setup error:', err);
       setError(err.message || 'Failed to setup 2FA');
     } finally {
       setIsLoading(false);
@@ -65,19 +145,27 @@ export default function TwoFactorSetup({ onSetupComplete }) {
     setError('');
 
     try {
+      console.log('Starting 2FA verification...');
+
       if (!verificationCode || verificationCode.length !== 6) {
         throw new Error('Please enter a valid 6-digit code');
       }
 
+      console.log('Verifying code for factor ID:', factorId);
       // Verify the code with Supabase
-      const { data, error } = await authService.verifyTwoFactorAuth(factorId, verificationCode);
+      const result = await authService.verifyTwoFactorAuth(factorId, verificationCode);
+      console.log('Verification result:', result);
 
-      if (error) throw error;
+      if (!result || !result.isValid) {
+        throw new Error('Invalid verification code');
+      }
 
       // Save backup codes to user profile
+      console.log('Getting current user...');
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) throw new Error('User not authenticated');
 
+      console.log('Saving backup codes to profile...');
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -86,10 +174,15 @@ export default function TwoFactorSetup({ onSetupComplete }) {
         })
         .eq('id', userData.user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating profile:', updateError);
+        throw updateError;
+      }
 
+      console.log('2FA verification successful, moving to step 3');
       setStep(3);
     } catch (err) {
+      console.error('2FA verification error:', err);
       setError(err.message || 'Failed to verify code');
     } finally {
       setIsLoading(false);

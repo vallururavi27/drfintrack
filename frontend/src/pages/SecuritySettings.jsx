@@ -5,6 +5,7 @@ import { ShieldCheckIcon, LockClosedIcon, EnvelopeIcon, DevicePhoneMobileIcon, A
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import TwoFactorSetup from '../components/auth/TwoFactorSetup';
+import MFATest from '../components/auth/MFATest';
 import { supabase } from '../services/supabaseClient';
 import { authService } from '../services/authService';
 
@@ -282,6 +283,15 @@ export default function SecuritySettings() {
                   <TwoFactorSetup onSetupComplete={handleTwoFactorSetupComplete} />
                 </div>
               )}
+
+              {/* MFA Test Component */}
+              <div className="mt-6">
+                <h4 className="text-md font-medium text-gray-900 dark:text-white mb-3">Test MFA Directly</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  If the regular setup button doesn't work, try this direct test component.
+                </p>
+                <MFATest />
+              </div>
 
               {showDisableTwoFactor && (
                 <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-md">
