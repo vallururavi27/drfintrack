@@ -364,7 +364,7 @@ export default function Transactions() {
             </div>
           </div>
 
-        {showFilters && (
+          {showFilters && (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -602,6 +602,7 @@ export default function Transactions() {
           </div>
         </div>
       </Card>
+      )}
 
       {/* Transaction Modal */}
       {isModalOpen && (
@@ -619,7 +620,7 @@ export default function Transactions() {
                       {currentTransaction ? 'Edit Transaction' : 'Add Transaction'}
                     </h3>
                     <div className="mt-4 space-y-4">
-                      <form onSubmit={handleSubmit} className="space-y-4">
+                      <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <div>
                             <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">

@@ -62,6 +62,16 @@ function SidebarContent({ location }) {
   const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
+    // Check if demo user is allowed (special flag set during login)
+    const allowDemoUser = localStorage.getItem('allowDemoUser') === 'true';
+
+    // Clear any unauthorized demo user information from localStorage
+    if (localStorage.getItem('email') === 'demo@example.com' && !allowDemoUser) {
+      console.log('Sidebar: Found unauthorized demo user, clearing...');
+      localStorage.removeItem('email');
+      localStorage.removeItem('name');
+    }
+
     // Update user info when localStorage changes or on component mount
     const updateUserInfo = async () => {
       try {
@@ -93,6 +103,36 @@ function SidebarContent({ location }) {
       window.removeEventListener('storage', updateUserInfo);
     };
   }, []);
+
+  // Force clear unauthorized demo user information if it's still showing
+  useEffect(() => {
+    // Check if demo user is allowed (special flag set during login)
+    const allowDemoUser = localStorage.getItem('allowDemoUser') === 'true';
+
+    // Only clear if demo user is not allowed
+    if ((userEmail === 'demo@example.com' || userName === 'Demo User' || userName === 'demo') && !allowDemoUser) {
+      console.log('Forcing removal of unauthorized demo user display');
+      setUserName('User');
+      setUserEmail('');
+
+      // Also clear localStorage
+      const themeMode = localStorage.getItem('themeMode');
+      localStorage.clear();
+      if (themeMode) {
+        localStorage.setItem('themeMode', themeMode);
+      }
+    }
+  }, [userEmail, userName]);
+
+  // Additional check on every render - only clear if demo user is not allowed
+  const allowDemoUser = localStorage.getItem('allowDemoUser') === 'true';
+  if ((userEmail === 'demo@example.com' || userName === 'Demo User' || userName === 'demo') && !allowDemoUser) {
+    console.log('Detected unauthorized demo user on render, clearing...');
+    setTimeout(() => {
+      setUserName('User');
+      setUserEmail('');
+    }, 0);
+  }
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto pt-16 pb-4 text-gray-800 dark:text-white">

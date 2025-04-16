@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { initializeTheme } from './utils/themeUtils'
 import { SearchProvider } from './contexts/SearchContext'
@@ -46,6 +46,39 @@ function App() {
 
   // Initialize theme and default data on app load
   useEffect(() => {
+    // Always clear demo user information from localStorage
+    console.log('Checking for demo user information...');
+
+    // Save the theme mode before clearing localStorage
+    const themeMode = localStorage.getItem('themeMode');
+
+    // Check if demo user exists
+    const hasDemo = localStorage.getItem('email') === 'demo@example.com' ||
+                   localStorage.getItem('name') === 'Demo User' ||
+                   localStorage.getItem('username') === 'demo';
+
+    // Check if demo user is allowed (special flag set during login)
+    const allowDemoUser = localStorage.getItem('allowDemoUser') === 'true';
+
+    if (hasDemo && !allowDemoUser) {
+      console.log('Found unauthorized demo user information, clearing localStorage...');
+      // Clear all localStorage items
+      localStorage.clear();
+
+      // Restore theme mode
+      if (themeMode) {
+        localStorage.setItem('themeMode', themeMode);
+      }
+    } else if (!hasDemo) {
+      // Just to be safe, remove any potential demo user keys if not a demo user
+      localStorage.removeItem('email');
+      localStorage.removeItem('name');
+      localStorage.removeItem('username');
+      localStorage.removeItem('token');
+    } else {
+      console.log('Demo user is authorized, allowing login');
+    }
+
     initializeTheme();
     initializeDefaultData();
   }, []);

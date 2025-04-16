@@ -61,6 +61,13 @@ export default function Login() {
         localStorage.setItem('token', data.session.access_token);
         localStorage.setItem('email', data.user.email);
         localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+
+        // Special handling for demo user
+        if (data.user.email === 'demo@example.com') {
+          console.log('Demo user detected, setting special flag');
+          localStorage.setItem('allowDemoUser', 'true');
+        }
+
         setIsLoading(false);
         navigate('/');
       }
@@ -139,6 +146,13 @@ export default function Login() {
       localStorage.setItem('token', data.session.access_token);
       localStorage.setItem('email', data.user.email);
       localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+
+      // Special handling for demo user
+      if (data.user.email === 'demo@example.com') {
+        console.log('Demo user detected after 2FA, setting special flag');
+        localStorage.setItem('allowDemoUser', 'true');
+      }
+
       navigate('/');
     } catch (err) {
       console.error('2FA verification error:', err);
