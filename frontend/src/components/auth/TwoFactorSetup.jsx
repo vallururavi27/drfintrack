@@ -67,6 +67,7 @@ export default function TwoFactorSetup({ onSetupComplete }) {
 
       // Check if user is authenticated
       try {
+        console.log('Checking authentication status...');
         const { data, error } = await supabase.auth.getUser();
         console.log('Current user response:', { data, error });
 
@@ -88,37 +89,44 @@ export default function TwoFactorSetup({ onSetupComplete }) {
 
       // Set up 2FA with Supabase
       console.log('Calling setupTwoFactorAuth...');
+
+      // Try the MFATest component's approach first (direct API call)
+      console.log('Trying direct MFA enrollment...');
       try {
-        // Try direct Supabase MFA API call first to test if it's working
-        console.log('Testing direct Supabase MFA API call...');
-        try {
-          const { data: directData, error: directError } = await supabase.auth.mfa.enroll({
-            factorType: 'totp'
-          });
-          console.log('Direct MFA API call result:', { data: directData, error: directError });
+        const { data: directData, error: directError } = await supabase.auth.mfa.enroll({
+          factorType: 'totp'
+        });
 
-          if (directError) {
-            console.error('Direct MFA API call error:', directError);
-          } else if (directData) {
-            console.log('Direct MFA API call successful');
-            // Use the direct result
-            setSecret(directData.totp.secret);
-            setQrCode(directData.totp.qr_code);
-            setFactorId(directData.id);
-            setStep(2);
-            console.log('2FA setup successful using direct API call, moved to step 2');
-            return; // Exit early since we succeeded
-          }
-        } catch (directCallError) {
-          console.error('Error in direct MFA API call:', directCallError);
+        console.log('Direct MFA API call result:', { data: directData, error: directError });
+
+        if (directError) {
+          console.error('Direct MFA API call error:', directError);
+          // Don't throw, just continue to next approach
+        } else if (directData && directData.totp) {
+          console.log('Direct MFA API call successful');
+          // Use the direct result
+          setSecret(directData.totp.secret);
+          setQrCode(directData.totp.qr_code);
+          setFactorId(directData.id);
+          setStep(2);
+          console.log('2FA setup successful using direct API call, moved to step 2');
+          return; // Exit early since we succeeded
+        } else {
+          console.warn('Direct MFA API call returned unexpected data format:', directData);
         }
+      } catch (directCallError) {
+        console.error('Error in direct MFA API call:', directCallError);
+        // Continue to next approach
+      }
 
-        // Fall back to using authService if direct call fails
-        console.log('Falling back to authService.setupTwoFactorAuth()...');
+      // Try authService approach
+      console.log('Trying authService.setupTwoFactorAuth()...');
+      try {
         const result = await authService.setupTwoFactorAuth();
         console.log('Setup 2FA result from authService:', result);
 
         if (!result || !result.id) {
+          console.error('Invalid response from authService:', result);
           throw new Error('Failed to setup 2FA: Invalid response from server');
         }
 
@@ -126,10 +134,12 @@ export default function TwoFactorSetup({ onSetupComplete }) {
         setQrCode(result.qr);
         setFactorId(result.id);
         setStep(2);
-        console.log('2FA setup successful, moved to step 2');
-      } catch (setupError) {
-        console.error('Error in setupTwoFactorAuth:', setupError);
-        throw setupError;
+        console.log('2FA setup successful using authService, moved to step 2');
+        return; // Exit early since we succeeded
+      } catch (authServiceError) {
+        console.error('Error in authService.setupTwoFactorAuth:', authServiceError);
+        // Continue to next approach or throw if this was the last attempt
+        throw authServiceError;
       }
     } catch (err) {
       console.error('2FA setup error:', err);
@@ -158,6 +168,11 @@ export default function TwoFactorSetup({ onSetupComplete }) {
       // Check if it's a permission error
       if (err.message && err.message.includes('permission')) {
         errorMessage = 'Permission error: You do not have permission to perform this action';
+      }
+
+      // Check if it's an authentication error
+      if (err.message && (err.message.includes('auth') || err.message.includes('login'))) {
+        errorMessage = 'Authentication error: Please log out and log back in, then try again';
       }
 
       setError(errorMessage);
@@ -257,16 +272,44 @@ export default function TwoFactorSetup({ onSetupComplete }) {
                 className="w-full"
                 type="button"
               >
-                {isLoading ? 'Setting up...' : 'Set up 2FA'}
+                {isLoading ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-t-transparent border-white rounded-full"></span>
+                    Setting up...
+                  </>
+                ) : (
+                  'Set up 2FA'
+                )}
               </Button>
-              <div className="mt-2">
+
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 dark:bg-red-900 rounded-md">
+                  <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+                  <div className="mt-2">
+                    <p className="text-xs text-red-600 dark:text-red-300">
+                      If you're having trouble, please try these steps:
+                    </p>
+                    <ul className="list-disc list-inside text-xs text-red-600 dark:text-red-300 mt-1">
+                      <li>Make sure you're logged in</li>
+                      <li>Try refreshing the page</li>
+                      <li>Log out and log back in</li>
+                      <li>Try the alternate setup method below</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                  Having trouble? Try the alternate setup method:
+                </p>
                 <button
                   onClick={() => {
                     console.log('Plain button clicked');
                     handleSetup();
                   }}
                   disabled={isLoading}
-                  className="text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+                  className="text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 underline"
                   type="button"
                 >
                   Try alternate setup
