@@ -72,9 +72,8 @@ DrFinTrack is a modern personal finance management web application designed to h
 4. Access the application at:
    - Frontend: http://localhost:5173
 
-### Demo Account
-- Email: demo@example.com
-- Password: password
+### Authentication
+The application uses Supabase Authentication for secure user management.
 
 ## Project Structure
 

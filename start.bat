@@ -20,9 +20,7 @@ echo.
 echo Backend: http://localhost:5000
 echo Frontend: http://localhost:5173 (or another port if 5173 is in use)
 echo.
-echo Demo account:
-echo Username: demo
-echo Password: password
+echo Create an account or sign in to get started
 echo.
 echo Press any key to open the application in your browser...
 echo ===================================================
