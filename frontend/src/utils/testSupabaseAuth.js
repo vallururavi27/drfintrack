@@ -29,9 +29,23 @@ export const testSupabaseAuth = async () => {
     results.signInAttempted = true;
 
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: 'demo@example.com',
-      password: 'password',
+      email: 'test@example.com',
+      password: 'password123',
     });
+
+    // If that fails, try the demo user
+    if (error) {
+      console.log('Trying demo user instead...');
+      const demoResult = await supabase.auth.signInWithPassword({
+        email: 'demo@example.com',
+        password: 'password',
+      });
+
+      if (demoResult.data?.user) {
+        console.log('Demo user login successful');
+        return { ...results, signInSuccess: true, user: demoResult.data.user };
+      }
+    }
 
     console.log('Sign in response:', { data, error });
 

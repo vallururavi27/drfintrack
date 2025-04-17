@@ -4,6 +4,7 @@ import { EnvelopeIcon, LockClosedIcon, UserCircleIcon, UserPlusIcon } from '@her
 import Button from '../components/ui/Button';
 import TwoFactorVerification from '../components/auth/TwoFactorVerification';
 import AuthTest from '../components/debug/AuthTest';
+import DirectAuthTest from '../components/debug/DirectAuthTest';
 import { supabase } from '../services/supabaseClient';
 import { checkAndCreateDemoUser } from '../utils/createDemoUser';
 
@@ -496,8 +497,9 @@ export default function Login() {
           </div>
         </div>
       </div>
+      {/* Debug components for testing Supabase auth */}
+      <AuthTest />
+      <DirectAuthTest />
     </div>
   );
 }
-
-
