@@ -41,28 +41,46 @@ export const bankAccountService = {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) throw new Error('User not authenticated');
 
-      // Check if bank_name exists in the schema
-      // If not, we'll handle it by not sending that field
-      const { data: schemaData, error: schemaError } = await supabase
+      // Get all columns from the bank_accounts table
+      const { data: columnsData, error: columnsError } = await supabase
         .from('information_schema.columns')
         .select('column_name')
-        .eq('table_name', 'bank_accounts')
-        .eq('column_name', 'bank_name');
+        .eq('table_name', 'bank_accounts');
 
-      // Prepare the account data
-      let processedData = {
-        ...accountData,
-        user_id: userData.user.id
-      };
+      if (columnsError) {
+        console.error('Error fetching schema:', columnsError);
+        // If we can't fetch schema, proceed with basic fields only
+        const { color, icon_name, bank_name, ...basicData } = accountData;
+        const { data, error } = await supabase
+          .from('bank_accounts')
+          .insert([{
+            ...basicData,
+            user_id: userData.user.id
+          }])
+          .select();
 
-      // If bank_name column doesn't exist in the schema, remove it from the data
-      if (schemaError || !schemaData || schemaData.length === 0) {
-        console.warn('bank_name column not found in schema, removing from request');
-        const { bank_name, ...dataWithoutBankName } = processedData;
-        processedData = dataWithoutBankName;
+        if (error) throw error;
+        return data[0];
       }
 
+      // Get list of valid column names
+      const validColumns = columnsData.map(col => col.column_name);
+      console.log('Valid columns in bank_accounts table:', validColumns);
+
+      // Filter out fields that don't exist in the schema
+      const processedData = {};
+      Object.keys(accountData).forEach(key => {
+        if (validColumns.includes(key) || key === 'user_id') {
+          processedData[key] = accountData[key];
+        } else {
+          console.warn(`Column '${key}' not found in schema, removing from request`);
+        }
+      });
+
       // Add user_id to the account data
+      processedData.user_id = userData.user.id;
+
+      // Insert the filtered data
       const { data, error } = await supabase
         .from('bank_accounts')
         .insert([processedData])
@@ -79,24 +97,41 @@ export const bankAccountService = {
   // Update an existing bank account
   async updateBankAccount(accountId, accountData) {
     try {
-      // Check if bank_name exists in the schema
-      // If not, we'll handle it by not sending that field
-      const { data: schemaData, error: schemaError } = await supabase
+      // Get all columns from the bank_accounts table
+      const { data: columnsData, error: columnsError } = await supabase
         .from('information_schema.columns')
         .select('column_name')
-        .eq('table_name', 'bank_accounts')
-        .eq('column_name', 'bank_name');
+        .eq('table_name', 'bank_accounts');
 
-      // Prepare the account data
-      let processedData = { ...accountData };
+      if (columnsError) {
+        console.error('Error fetching schema:', columnsError);
+        // If we can't fetch schema, proceed with basic fields only
+        const { color, icon_name, bank_name, ...basicData } = accountData;
+        const { data, error } = await supabase
+          .from('bank_accounts')
+          .update(basicData)
+          .eq('id', accountId)
+          .select();
 
-      // If bank_name column doesn't exist in the schema, remove it from the data
-      if (schemaError || !schemaData || schemaData.length === 0) {
-        console.warn('bank_name column not found in schema, removing from request');
-        const { bank_name, ...dataWithoutBankName } = processedData;
-        processedData = dataWithoutBankName;
+        if (error) throw error;
+        return data[0];
       }
 
+      // Get list of valid column names
+      const validColumns = columnsData.map(col => col.column_name);
+      console.log('Valid columns for update:', validColumns);
+
+      // Filter out fields that don't exist in the schema
+      const processedData = {};
+      Object.keys(accountData).forEach(key => {
+        if (validColumns.includes(key)) {
+          processedData[key] = accountData[key];
+        } else {
+          console.warn(`Column '${key}' not found in schema, removing from update request`);
+        }
+      });
+
+      // Update with the filtered data
       const { data, error } = await supabase
         .from('bank_accounts')
         .update(processedData)
