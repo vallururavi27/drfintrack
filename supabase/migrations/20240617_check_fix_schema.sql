@@ -1,13 +1,3 @@
-# Instructions for Checking and Fixing Supabase Schema
-
-Follow these steps to check and fix the database schema in Supabase:
-
-1. Log in to your Supabase dashboard at https://bqurvqysmwsropdaqwot.supabase.co
-2. Navigate to the SQL Editor
-3. Create a new query
-4. Copy and paste the following SQL code that will automatically check and fix the schema:
-
-```sql
 -- Check and fix the bank_accounts table schema
 DO $$
 DECLARE
@@ -24,14 +14,14 @@ BEGIN
     -- If account_name exists but name doesn't, rename it
     IF column_exists THEN
         RAISE NOTICE 'Found account_name column, checking if name column exists...';
-
+        
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.columns
             WHERE table_name = 'bank_accounts'
             AND column_name = 'name'
         ) INTO column_exists;
-
+        
         IF NOT column_exists THEN
             RAISE NOTICE 'Renaming account_name to name...';
             ALTER TABLE bank_accounts RENAME COLUMN account_name TO name;
@@ -41,20 +31,20 @@ BEGIN
             UPDATE bank_accounts
             SET name = account_name
             WHERE name IS NULL OR name = '';
-
+            
             -- Drop the account_name column
             ALTER TABLE bank_accounts DROP COLUMN account_name;
         END IF;
     ELSE
         RAISE NOTICE 'account_name column does not exist, checking for name column...';
-
+        
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.columns
             WHERE table_name = 'bank_accounts'
             AND column_name = 'name'
         ) INTO column_exists;
-
+        
         IF NOT column_exists THEN
             RAISE NOTICE 'name column does not exist, adding it...';
             ALTER TABLE bank_accounts ADD COLUMN name TEXT NOT NULL DEFAULT '';
@@ -74,14 +64,14 @@ BEGIN
     -- If current_balance exists but balance doesn't, rename it
     IF column_exists THEN
         RAISE NOTICE 'Found current_balance column, checking if balance column exists...';
-
+        
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.columns
             WHERE table_name = 'bank_accounts'
             AND column_name = 'balance'
         ) INTO column_exists;
-
+        
         IF NOT column_exists THEN
             RAISE NOTICE 'Renaming current_balance to balance...';
             ALTER TABLE bank_accounts RENAME COLUMN current_balance TO balance;
@@ -91,20 +81,20 @@ BEGIN
             UPDATE bank_accounts
             SET balance = current_balance
             WHERE balance = 0;
-
+            
             -- Drop the current_balance column
             ALTER TABLE bank_accounts DROP COLUMN current_balance;
         END IF;
     ELSE
         RAISE NOTICE 'current_balance column does not exist, checking for balance column...';
-
+        
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.columns
             WHERE table_name = 'bank_accounts'
             AND column_name = 'balance'
         ) INTO column_exists;
-
+        
         IF NOT column_exists THEN
             RAISE NOTICE 'balance column does not exist, adding it...';
             ALTER TABLE bank_accounts ADD COLUMN balance DECIMAL(12,2) DEFAULT 0;
@@ -126,7 +116,7 @@ BEGIN
         ELSIF NEW.type = 'expense' THEN
           UPDATE bank_accounts SET balance = balance - NEW.amount WHERE id = NEW.account_id;
         END IF;
-
+        
       -- For updated transactions (UPDATE)
       ELSIF TG_OP = 'UPDATE' THEN
         -- Calculate the change in amount
@@ -149,7 +139,7 @@ BEGIN
             UPDATE bank_accounts SET balance = balance + OLD.amount + NEW.amount WHERE id = NEW.account_id;
           END IF;
         END IF;
-
+        
       -- For deleted transactions (DELETE)
       ELSIF TG_OP = 'DELETE' THEN
         IF OLD.type = 'income' THEN
@@ -158,7 +148,7 @@ BEGIN
           UPDATE bank_accounts SET balance = balance + OLD.amount WHERE id = OLD.account_id;
         END IF;
       END IF;
-
+      
       RETURN NULL;
     END;
     $$ LANGUAGE plpgsql;
@@ -188,26 +178,3 @@ BEGIN
 
     RAISE NOTICE 'Schema check and fix completed.';
 END $$;
-```
-
-5. Click "Run" to execute the SQL
-6. Verify that the functions have been updated by checking the "Functions" section in the Supabase dashboard
-
-## What This Script Does
-
-1. **Checks Column Names**: It checks if the bank_accounts table has columns named 'account_name' and 'current_balance'
-2. **Fixes Column Names**: If needed, it renames 'account_name' to 'name' and 'current_balance' to 'balance'
-3. **Handles Data Migration**: If both old and new columns exist, it migrates data and drops the old columns
-4. **Updates Triggers**: It updates the database triggers to use the correct column names
-
-## Testing After Running the Script
-
-After running the script, you should test that everything works correctly:
-
-1. Go to the Banking page in the application
-2. Check if the connection test shows all green indicators
-3. Try adding a new bank account
-4. Add a transaction (income or expense) to that account
-5. Verify that the account balance is updated correctly
-
-If you encounter any issues, check the Supabase logs for error messages and the browser console for JavaScript errors.
