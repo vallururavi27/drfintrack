@@ -26,16 +26,52 @@ export default function Login() {
   }, []);
 
   // Add a fallback login method for demo purposes
-  const handleDemoLogin = () => {
-    setIsLoading(true);
-    setEmail('demo@example.com');
-    setPassword('password123');
+  const handleDemoLogin = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
 
-    // Set a timeout to submit the form after the state updates
-    setTimeout(() => {
-      const form = document.querySelector('form');
-      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }, 100);
+      console.log('Attempting direct demo login with Supabase...');
+
+      // Directly call Supabase auth instead of using the form
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'demo@example.com',
+        password: 'password123',
+      });
+
+      console.log('Demo login response:', { data, error });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || !data.user) {
+        throw new Error('Demo login successful but no user data returned');
+      }
+
+      // Clear any existing auth data
+      localStorage.removeItem('token');
+      localStorage.removeItem('email');
+      localStorage.removeItem('name');
+      localStorage.removeItem('allowDemoUser');
+
+      // Store the session data
+      localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('email', data.user.email);
+      localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+      localStorage.setItem('allowDemoUser', 'true');
+
+      console.log('Demo user session stored successfully');
+
+      // Redirect to dashboard
+      setTimeout(() => {
+        window.location.replace('/');
+      }, 500);
+    } catch (err) {
+      console.error('Demo login error:', err);
+      setError(err.message || 'Failed to login with demo account');
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -104,7 +140,16 @@ export default function Login() {
 
       // Store user session
       try {
+        console.log('Storing session data:', data);
+
+        // First, clear any existing auth data to prevent conflicts
+        localStorage.removeItem('token');
+        localStorage.removeItem('email');
+        localStorage.removeItem('name');
+        localStorage.removeItem('allowDemoUser');
+
         if (data.session && data.session.access_token) {
+          // Store the session data
           localStorage.setItem('token', data.session.access_token);
           localStorage.setItem('email', data.user.email);
           localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
@@ -117,8 +162,12 @@ export default function Login() {
 
           console.log('User session stored successfully');
 
-          // Force a page reload to ensure the app recognizes the new auth state
-          window.location.href = '/';
+          // Add a small delay before redirecting
+          setTimeout(() => {
+            console.log('Redirecting to dashboard...');
+            // Force a complete page reload to ensure the app recognizes the new auth state
+            window.location.replace('/');
+          }, 500);
         } else {
           throw new Error('No session data available');
         }
@@ -213,7 +262,16 @@ export default function Login() {
 
       // Store user session
       try {
+        console.log('Storing session data after 2FA:', data);
+
+        // First, clear any existing auth data to prevent conflicts
+        localStorage.removeItem('token');
+        localStorage.removeItem('email');
+        localStorage.removeItem('name');
+        localStorage.removeItem('allowDemoUser');
+
         if (data.session && data.session.access_token) {
+          // Store the session data
           localStorage.setItem('token', data.session.access_token);
           localStorage.setItem('email', data.user.email);
           localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
@@ -226,8 +284,12 @@ export default function Login() {
 
           console.log('User session stored successfully after 2FA');
 
-          // Force a page reload to ensure the app recognizes the new auth state
-          window.location.href = '/';
+          // Add a small delay before redirecting
+          setTimeout(() => {
+            console.log('Redirecting to dashboard after 2FA...');
+            // Force a complete page reload to ensure the app recognizes the new auth state
+            window.location.replace('/');
+          }, 500);
         } else {
           throw new Error('No session data available after 2FA');
         }
