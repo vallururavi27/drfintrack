@@ -27,12 +27,12 @@ export default function Banking() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentAccount, setCurrentAccount] = useState(null);
   const [formData, setFormData] = useState({
-    account_name: '',
+    name: '',
     account_number: '',
     bank_name: '',
     ifsc_code: '',
     account_type: 'Savings',
-    current_balance: 0,
+    balance: 0,
     is_active: true,
     color: '#3b82f6',
     icon_name: 'bank'
@@ -77,7 +77,7 @@ export default function Banking() {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: name === 'current_balance' ? parseFloat(value) || 0 : value
+      [name]: name === 'balance' ? parseFloat(value) || 0 : value
     });
 
     // Clear error for this field
@@ -107,8 +107,8 @@ export default function Banking() {
   const validateForm = () => {
     const errors = {};
 
-    if (!formData.account_name.trim()) {
-      errors.account_name = 'Account name is required';
+    if (!formData.name.trim()) {
+      errors.name = 'Account name is required';
     }
 
     if (!formData.account_number.trim()) {
@@ -133,12 +133,12 @@ export default function Banking() {
   const handleAddAccount = () => {
     setCurrentAccount(null);
     setFormData({
-      account_name: '',
+      name: '',
       account_number: '',
       bank_name: '',
       ifsc_code: '',
       account_type: 'Savings',
-      current_balance: 0,
+      balance: 0,
       is_active: true,
       color: '#3b82f6',
       icon_name: 'bank'
@@ -151,12 +151,12 @@ export default function Banking() {
   const handleEditAccount = (account) => {
     setCurrentAccount(account);
     setFormData({
-      account_name: account.account_name,
+      name: account.name,
       account_number: account.account_number,
-      bank_name: account.bank_name,
+      bank_name: account.bank_name || '',
       ifsc_code: account.ifsc_code || '',
       account_type: account.account_type,
-      current_balance: account.current_balance,
+      balance: account.balance,
       is_active: account.is_active,
       color: account.color || '#3b82f6',
       icon_name: account.icon_name || 'bank'
@@ -205,7 +205,7 @@ export default function Banking() {
   };
 
   // Calculate total balance
-  const totalBalance = accounts.reduce((sum, account) => sum + parseFloat(account.current_balance), 0);
+  const totalBalance = accounts.reduce((sum, account) => sum + parseFloat(account.balance), 0);
 
   return (
     <div className="space-y-3">
@@ -372,7 +372,7 @@ export default function Banking() {
                             </div>
                           </div>
                           <div className="ml-2">
-                            <div className="text-xs font-medium text-gray-900 dark:text-white">{account.account_name}</div>
+                            <div className="text-xs font-medium text-gray-900 dark:text-white">{account.name}</div>
                             <div className="text-xs text-gray-500">{account.is_active ? 'Active' : 'Inactive'}</div>
                           </div>
                         </div>
@@ -393,13 +393,13 @@ export default function Banking() {
                         {account.account_number.replace(/\d(?=\d{4})/g, "*")}
                       </td>
                       <td className={`px-4 py-2 whitespace-nowrap text-xs font-medium text-right ${
-                        parseFloat(account.current_balance) >= 0
+                        parseFloat(account.balance) >= 0
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {parseFloat(account.current_balance) >= 0
-                          ? '₹' + parseFloat(account.current_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })
-                          : '-₹' + Math.abs(parseFloat(account.current_balance)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        {parseFloat(account.balance) >= 0
+                          ? '₹' + parseFloat(account.balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                          : '-₹' + Math.abs(parseFloat(account.balance)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-right text-xs font-medium">
                         <button
@@ -478,21 +478,21 @@ export default function Banking() {
 
                         {/* Account Name */}
                         <div>
-                          <label htmlFor="account_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Account Name
                           </label>
                           <input
                             type="text"
-                            name="account_name"
-                            id="account_name"
-                            value={formData.account_name}
+                            name="name"
+                            id="name"
+                            value={formData.name}
                             onChange={handleInputChange}
                             className="input mt-1 block w-full"
                             placeholder="e.g., Salary Account"
                             required
                           />
-                          {formErrors.account_name && (
-                            <p className="mt-1 text-xs text-red-600">{formErrors.account_name}</p>
+                          {formErrors.name && (
+                            <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>
                           )}
                         </div>
 
@@ -560,7 +560,7 @@ export default function Banking() {
 
                         {/* Current Balance */}
                         <div>
-                          <label htmlFor="current_balance" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          <label htmlFor="balance" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Current Balance
                           </label>
                           <div className="mt-1 relative rounded-md shadow-sm">
@@ -569,9 +569,9 @@ export default function Banking() {
                             </div>
                             <input
                               type="number"
-                              name="current_balance"
-                              id="current_balance"
-                              value={formData.current_balance}
+                              name="balance"
+                              id="balance"
+                              value={formData.balance}
                               onChange={handleInputChange}
                               className="input pl-7 block w-full"
                               step="0.01"

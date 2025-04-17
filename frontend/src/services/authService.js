@@ -416,5 +416,58 @@ export const authService = {
   async verifyEmail(token) {
     // This is handled automatically by Supabase when the user clicks the email link
     // You can add custom logic here if needed
+  },
+
+  // Sign in with OAuth provider (Google, Facebook, etc.)
+  async signInWithOAuth(provider) {
+    try {
+      console.log(`Signing in with ${provider}...`);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: window.location.origin + '/auth/callback'
+        }
+      });
+
+      if (error) throw error;
+
+      console.log(`${provider} OAuth sign-in initiated:`, data);
+      return data;
+    } catch (error) {
+      console.error(`${provider} OAuth sign-in error:`, error);
+      throw error;
+    }
+  },
+
+  // Handle OAuth callback
+  async handleOAuthCallback() {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) throw error;
+
+      if (data?.session?.user) {
+        // Store authentication data
+        localStorage.setItem('token', data.session.access_token);
+        localStorage.setItem('email', data.session.user.email);
+        localStorage.setItem('name', data.session.user.user_metadata?.name || data.session.user.email);
+
+        // Record login history
+        await supabase.from('login_history').insert([{
+          user_id: data.session.user.id,
+          ip_address: 'Client IP',
+          device: navigator.userAgent,
+          successful: true,
+          provider: data.session.user.app_metadata?.provider || 'oauth'
+        }]);
+
+        return data.session.user;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('OAuth callback handling error:', error);
+      throw error;
+    }
   }
 };

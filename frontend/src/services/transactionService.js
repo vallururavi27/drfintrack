@@ -8,7 +8,7 @@ export const transactionService = {
         .from('transactions')
         .select(`
           *,
-          bank_accounts(id, account_name, bank_name),
+          bank_accounts(id, name, bank_name),
           categories(id, name, type, icon_name, color)
         `)
         .order('transaction_date', { ascending: false });
@@ -71,7 +71,7 @@ export const transactionService = {
         .from('transactions')
         .select(`
           *,
-          bank_accounts(id, account_name, bank_name),
+          bank_accounts(id, name, bank_name),
           categories(id, name, type, icon_name, color)
         `)
         .eq('account_id', accountId)
@@ -92,7 +92,7 @@ export const transactionService = {
         .from('transactions')
         .select(`
           *,
-          bank_accounts(id, account_name, bank_name),
+          bank_accounts(id, name, bank_name),
           categories(id, name, type, icon_name, color)
         `)
         .eq('type', type)

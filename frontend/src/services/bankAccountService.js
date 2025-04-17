@@ -7,7 +7,7 @@ export const bankAccountService = {
       const { data, error } = await supabase
         .from('bank_accounts')
         .select('*')
-        .order('account_name', { ascending: true });
+        .order('name', { ascending: true });
 
       if (error) throw error;
       return data;
@@ -88,7 +88,7 @@ export const bankAccountService = {
     try {
       const { data, error } = await supabase
         .from('bank_accounts')
-        .update({ current_balance: newBalance, updated_at: new Date().toISOString() })
+        .update({ balance: newBalance, updated_at: new Date().toISOString() })
         .eq('id', accountId)
         .select();
 
@@ -136,11 +136,11 @@ export const bankAccountService = {
       // Get the current balance
       const { data: account } = await supabase
         .from('bank_accounts')
-        .select('current_balance')
+        .select('balance')
         .eq('id', accountId)
         .single();
 
-      const currentBalance = account?.current_balance || 0;
+      const currentBalance = account?.balance || 0;
 
       // Calculate balance history
       const balanceHistory = [];

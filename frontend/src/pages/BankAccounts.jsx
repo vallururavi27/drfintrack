@@ -7,11 +7,11 @@ import { motion } from 'framer-motion';
 // Bank account form component
 const BankAccountForm = ({ account, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
-    account_name: '',
+    name: '',
     account_number: '',
     bank_name: '',
     account_type: 'Savings',
-    current_balance: 0,
+    balance: 0,
     icon_name: 'bank',
     color: '#3b82f6',
     ...account
@@ -21,7 +21,7 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'current_balance' ? parseFloat(value) : value
+      [name]: name === 'balance' ? parseFloat(value) : value
     }));
   };
 
@@ -43,14 +43,14 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
             </label>
             <input
               type="text"
-              name="account_name"
-              value={formData.account_name}
+              name="name"
+              value={formData.name}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Bank Name
@@ -78,7 +78,7 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
               <option value="Other">Other</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Account Number
@@ -92,7 +92,7 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Account Type
@@ -112,22 +112,22 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
               <option value="NRI">NRI</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Current Balance
             </label>
             <input
               type="number"
-              name="current_balance"
-              value={formData.current_balance}
+              name="balance"
+              value={formData.balance}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               step="0.01"
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Color
@@ -141,7 +141,7 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
             />
           </div>
         </div>
-        
+
         <div className="mt-6 flex justify-end space-x-3">
           <button
             type="button"
@@ -173,14 +173,14 @@ const BankAccountCard = ({ account, onEdit, onDelete }) => {
       <div className="p-5">
         <div className="flex justify-between items-start">
           <div className="flex items-center">
-            <div 
+            <div
               className="w-10 h-10 rounded-full flex items-center justify-center mr-3"
               style={{ backgroundColor: account.color || '#3b82f6' }}
             >
               <BanknotesIcon className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">{account.account_name}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{account.name}</h3>
               <p className="text-sm text-gray-500">{account.bank_name}</p>
             </div>
           </div>
@@ -201,7 +201,7 @@ const BankAccountCard = ({ account, onEdit, onDelete }) => {
             </button>
           </div>
         </div>
-        
+
         <div className="mt-4">
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-500">Account Number</span>
@@ -216,7 +216,7 @@ const BankAccountCard = ({ account, onEdit, onDelete }) => {
           <div className="flex justify-between items-center mt-1">
             <span className="text-sm text-gray-500">Balance</span>
             <span className="text-lg font-bold text-blue-600">
-              ₹{account.current_balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{account.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
         </div>
@@ -230,13 +230,13 @@ const BankAccounts = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const queryClient = useQueryClient();
-  
+
   // Fetch bank accounts
   const { data: accounts = [], isLoading, error } = useQuery({
     queryKey: ['bankAccounts'],
     queryFn: bankAccountService.getBankAccounts
   });
-  
+
   // Create bank account mutation
   const createMutation = useMutation({
     mutationFn: bankAccountService.createBankAccount,
@@ -245,7 +245,7 @@ const BankAccounts = () => {
       setShowForm(false);
     }
   });
-  
+
   // Update bank account mutation
   const updateMutation = useMutation({
     mutationFn: (data) => bankAccountService.updateBankAccount(data.id, data),
@@ -255,7 +255,7 @@ const BankAccounts = () => {
       setEditingAccount(null);
     }
   });
-  
+
   // Delete bank account mutation
   const deleteMutation = useMutation({
     mutationFn: bankAccountService.deleteBankAccount,
@@ -263,7 +263,7 @@ const BankAccounts = () => {
       queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
     }
   });
-  
+
   // Handle form submission
   const handleSubmit = (formData) => {
     if (editingAccount) {
@@ -272,29 +272,29 @@ const BankAccounts = () => {
       createMutation.mutate(formData);
     }
   };
-  
+
   // Handle edit button click
   const handleEdit = (account) => {
     setEditingAccount(account);
     setShowForm(true);
   };
-  
+
   // Handle delete button click
   const handleDelete = (accountId) => {
     if (window.confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
       deleteMutation.mutate(accountId);
     }
   };
-  
+
   // Handle cancel button click
   const handleCancel = () => {
     setShowForm(false);
     setEditingAccount(null);
   };
-  
+
   // Calculate total balance
   const totalBalance = accounts.reduce((sum, account) => sum + account.current_balance, 0);
-  
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
@@ -310,7 +310,7 @@ const BankAccounts = () => {
           Add Account
         </button>
       </div>
-      
+
       {/* Summary card */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Summary</h2>
@@ -327,7 +327,7 @@ const BankAccounts = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Form */}
       {showForm && (
         <div className="mb-6">
@@ -338,7 +338,7 @@ const BankAccounts = () => {
           />
         </div>
       )}
-      
+
       {/* Loading state */}
       {isLoading && (
         <div className="text-center py-10">
@@ -346,14 +346,14 @@ const BankAccounts = () => {
           <p className="mt-2 text-gray-600">Loading accounts...</p>
         </div>
       )}
-      
+
       {/* Error state */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6">
           <p>Error loading bank accounts. Please try again.</p>
         </div>
       )}
-      
+
       {/* Empty state */}
       {!isLoading && !error && accounts.length === 0 && (
         <div className="text-center py-10 bg-gray-50 rounded-lg">
@@ -372,7 +372,7 @@ const BankAccounts = () => {
           </button>
         </div>
       )}
-      
+
       {/* Account list */}
       {!isLoading && !error && accounts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
