@@ -145,11 +145,22 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await authService.signOut();
+      console.log('AuthContext: Logging out user...');
+      await authService.logout();
+
+      // Update local state
       setUser(null);
       setIsAuthenticated(false);
+
+      console.log('AuthContext: User logged out successfully');
+      return { success: true };
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('AuthContext: Logout error:', error);
+
+      // Still update local state even if there's an error
+      setUser(null);
+      setIsAuthenticated(false);
+
       throw error;
     }
   };

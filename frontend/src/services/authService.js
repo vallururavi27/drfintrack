@@ -90,9 +90,21 @@ export const authService = {
         device: navigator.userAgent,
         successful: true
       }]);
+
+      // Store token in localStorage for app-wide authentication
+      if (data.session) {
+        localStorage.setItem('token', data.session.access_token);
+        localStorage.setItem('email', data.user.email);
+        localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+      }
     }
 
     return data.user;
+  },
+
+  // Sign in (alias for login for compatibility)
+  async signIn(email, password) {
+    return this.login(email, password);
   },
 
   // Login with 2FA
@@ -142,13 +154,47 @@ export const authService = {
 
   // Logout user
   async logout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // Clear localStorage items related to authentication
+      localStorage.removeItem('token');
+      localStorage.removeItem('email');
+      localStorage.removeItem('name');
+      localStorage.removeItem('username');
+      localStorage.removeItem('allowDemoUser');
+
+      console.log('Logout successful, localStorage cleared');
+      return { success: true };
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still try to clear localStorage even if Supabase signOut fails
+      localStorage.removeItem('token');
+      localStorage.removeItem('email');
+      localStorage.removeItem('name');
+      localStorage.removeItem('username');
+      localStorage.removeItem('allowDemoUser');
+      throw error;
+    }
   },
 
   // Get current user
   getCurrentUser() {
     return supabase.auth.getUser().then(({ data }) => data.user);
+  },
+
+  // Get current session
+  async getSession() {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return data.session;
+    } catch (error) {
+      console.error('Error getting session:', error);
+      return null;
+    }
   },
 
   // Get user profile

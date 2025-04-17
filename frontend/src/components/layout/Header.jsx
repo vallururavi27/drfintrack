@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setThemeMode, getThemeMode, isDarkMode, THEME_MODES } from '../../utils/themeUtils';
 import { useSearch } from '../../contexts/SearchContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Bars3Icon, BellIcon, MagnifyingGlassIcon, UserCircleIcon, SunIcon, MoonIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { supabase } from '../../services/supabaseClient';
 
@@ -11,6 +12,9 @@ export default function Header({ setIsMobileMenuOpen }) {
   const [username, setUsername] = useState('User');
   const userMenuRef = useRef(null);
   const navigate = useNavigate();
+
+  // Use the auth context
+  const { logout } = useAuth();
 
   // Use the search context
   const { searchQuery, setSearchQuery, handleSearch } = useSearch();
@@ -222,10 +226,15 @@ export default function Header({ setIsMobileMenuOpen }) {
             >
               <button
                 className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600"
-                onClick={() => {
-                  localStorage.removeItem('token');
-                  localStorage.removeItem('username');
-                  navigate('/login');
+                onClick={async () => {
+                  try {
+                    await logout();
+                    navigate('/login');
+                  } catch (error) {
+                    console.error('Error during logout:', error);
+                    // Still try to navigate to login page even if logout fails
+                    navigate('/login');
+                  }
                 }}
               >
                 <ArrowRightOnRectangleIcon className="mr-2 h-5 w-5" />
