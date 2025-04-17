@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bankAccountService } from '../services/bankAccountService';
-import { PlusIcon, PencilIcon, TrashIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, TrashIcon, BanknotesIcon, CreditCardIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import UpiLinkForm from '../components/banking/UpiLinkForm';
 
 // Bank account form component
 const BankAccountForm = ({ account, onSubmit, onCancel }) => {
@@ -163,7 +164,7 @@ const BankAccountForm = ({ account, onSubmit, onCancel }) => {
 };
 
 // Bank account card component
-const BankAccountCard = ({ account, onEdit, onDelete }) => {
+const BankAccountCard = ({ account, onEdit, onDelete, onLinkUpi }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -185,6 +186,13 @@ const BankAccountCard = ({ account, onEdit, onDelete }) => {
             </div>
           </div>
           <div className="flex space-x-2">
+            <button
+              onClick={() => onLinkUpi(account)}
+              className="text-blue-600 hover:text-blue-800"
+              title="Link UPI ID"
+            >
+              <CreditCardIcon className="h-5 w-5" />
+            </button>
             <button
               onClick={() => onEdit(account)}
               className="p-1 rounded-full hover:bg-gray-100"
@@ -229,6 +237,8 @@ const BankAccountCard = ({ account, onEdit, onDelete }) => {
 const BankAccounts = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
+  const [showUpiForm, setShowUpiForm] = useState(false);
+  const [upiAccount, setUpiAccount] = useState(null);
   const queryClient = useQueryClient();
 
   // Fetch bank accounts
@@ -292,6 +302,24 @@ const BankAccounts = () => {
     setEditingAccount(null);
   };
 
+  // Handle UPI link button click
+  const handleLinkUpi = (account) => {
+    setUpiAccount(account);
+    setShowUpiForm(true);
+  };
+
+  // Handle UPI form success
+  const handleUpiSuccess = () => {
+    setShowUpiForm(false);
+    setUpiAccount(null);
+  };
+
+  // Handle UPI form cancel
+  const handleUpiCancel = () => {
+    setShowUpiForm(false);
+    setUpiAccount(null);
+  };
+
   // Calculate total balance
   const totalBalance = accounts.reduce((sum, account) => sum + account.current_balance, 0);
 
@@ -328,13 +356,24 @@ const BankAccounts = () => {
         </div>
       </div>
 
-      {/* Form */}
+      {/* Bank Account Form */}
       {showForm && (
         <div className="mb-6">
           <BankAccountForm
             account={editingAccount}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
+          />
+        </div>
+      )}
+
+      {/* UPI Link Form */}
+      {showUpiForm && upiAccount && (
+        <div className="mb-6">
+          <UpiLinkForm
+            account={upiAccount}
+            onSuccess={handleUpiSuccess}
+            onCancel={handleUpiCancel}
           />
         </div>
       )}
@@ -382,6 +421,7 @@ const BankAccounts = () => {
               account={account}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onLinkUpi={handleLinkUpi}
             />
           ))}
         </div>

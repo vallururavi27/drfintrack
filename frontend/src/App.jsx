@@ -29,7 +29,9 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import VerifyEmail from './pages/VerifyEmail'
 import SecuritySettings from './pages/SecuritySettings'
+import ApiKeys from './pages/ApiKeys'
 import AuthTest from './pages/AuthTest'
+import TestSupabase from './pages/TestSupabase'
 
 // Create a client
 const queryClient = new QueryClient()
@@ -100,6 +102,7 @@ function App() {
             <Route path="/investments" element={<Investments />} />
             <Route path="/settings" element={<SettingsNew />} />
             <Route path="/settings/security" element={<SecuritySettings />} />
+            <Route path="/settings/api-keys" element={<ApiKeys />} />
             <Route path="/search" element={<SearchResults />} />
           </Route>
 
