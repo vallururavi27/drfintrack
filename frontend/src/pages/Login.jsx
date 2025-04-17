@@ -5,7 +5,9 @@ import Button from '../components/ui/Button';
 import TwoFactorVerification from '../components/auth/TwoFactorVerification';
 import AuthTest from '../components/debug/AuthTest';
 import DirectAuthTest from '../components/debug/DirectAuthTest';
+import FixedAuthTest from '../components/debug/FixedAuthTest';
 import { supabase } from '../services/supabaseClient';
+import { supabaseFixed } from '../services/supabaseClientFixed';
 import { checkAndCreateDemoUser } from '../utils/createDemoUser';
 
 export default function Login() {
@@ -33,22 +35,61 @@ export default function Login() {
       setIsLoading(true);
       setError('');
 
-      console.log('Attempting direct demo login with Supabase...');
+      console.log('Attempting direct demo login with fixed Supabase client...');
 
-      // Directly call Supabase auth instead of using the form
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Try with the fixed Supabase client first
+      const { data, error } = await supabaseFixed.auth.signInWithPassword({
         email: 'demo@example.com',
         password: 'password',
       });
 
-      console.log('Demo login response:', { data, error });
+      console.log('Fixed client demo login response:', { data, error });
 
+      // If fixed client fails, try regular client
       if (error) {
-        throw error;
+        console.log('Fixed client failed, trying regular client...');
+
+        const regularResult = await supabase.auth.signInWithPassword({
+          email: 'demo@example.com',
+          password: 'password',
+        });
+
+        console.log('Regular client demo login response:', regularResult);
+
+        if (regularResult.error) {
+          throw regularResult.error;
+        }
+
+        if (!regularResult.data || !regularResult.data.user) {
+          throw new Error('Regular client login successful but no user data returned');
+        }
+
+        // Use the regular client result
+        // Clear any existing auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('email');
+        localStorage.removeItem('name');
+        localStorage.removeItem('allowDemoUser');
+
+        // Store the session data
+        localStorage.setItem('token', regularResult.data.session.access_token);
+        localStorage.setItem('email', regularResult.data.user.email);
+        localStorage.setItem('name', regularResult.data.user.user_metadata?.name || regularResult.data.user.email);
+        localStorage.setItem('allowDemoUser', 'true');
+
+        console.log('Demo user session stored successfully (regular client)');
+
+        // Redirect to dashboard
+        setTimeout(() => {
+          window.location.replace('/');
+        }, 500);
+
+        return;
       }
 
+      // If we get here, the fixed client worked
       if (!data || !data.user) {
-        throw new Error('Demo login successful but no user data returned');
+        throw new Error('Fixed client login successful but no user data returned');
       }
 
       // Clear any existing auth data
@@ -63,7 +104,7 @@ export default function Login() {
       localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
       localStorage.setItem('allowDemoUser', 'true');
 
-      console.log('Demo user session stored successfully');
+      console.log('Demo user session stored successfully (fixed client)');
 
       // Redirect to dashboard
       setTimeout(() => {
@@ -500,6 +541,7 @@ export default function Login() {
       {/* Debug components for testing Supabase auth */}
       <AuthTest />
       <DirectAuthTest />
+      <FixedAuthTest />
     </div>
   );
 }
