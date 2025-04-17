@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import Button from '../components/ui/Button';
@@ -17,13 +17,34 @@ export default function Login() {
   const [resendingEmail, setResendingEmail] = useState(false);
   const navigate = useNavigate();
 
+  // Check if we're already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // If we're already logged in, redirect to home
+      window.location.href = '/';
+    }
+  }, []);
+
+  // Add a fallback login method for demo purposes
+  const handleDemoLogin = () => {
+    setIsLoading(true);
+    setEmail('demo@example.com');
+    setPassword('password123');
+
+    // Set a timeout to submit the form after the state updates
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }, 100);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-
       console.log('Attempting to login with Supabase:', { email });
 
       // Attempt to login via Supabase
@@ -43,33 +64,69 @@ export default function Login() {
           setIsEmailUnverified(false);
           throw error;
         }
+        setIsLoading(false);
         return;
       }
 
-      // Check if 2FA is required (you would need to implement this check)
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('two_factor_enabled')
-        .eq('id', data.user.id)
-        .single();
+      if (!data || !data.user) {
+        console.error('Login successful but no user data returned');
+        setError('Login failed: No user data returned');
+        setIsLoading(false);
+        return;
+      }
 
-      if (profileData?.two_factor_enabled) {
-        setRequires2FA(true);
-        setTempCredentials({ email, password });
-      } else {
-        // Store user session
-        localStorage.setItem('token', data.session.access_token);
-        localStorage.setItem('email', data.user.email);
-        localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+      console.log('User authenticated successfully:', data.user);
 
-        // Special handling for demo user
-        if (data.user.email === 'demo@example.com') {
-          console.log('Demo user detected, setting special flag');
-          localStorage.setItem('allowDemoUser', 'true');
+      // Check if 2FA is required
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('two_factor_enabled')
+          .eq('id', data.user.id)
+          .single();
+
+        console.log('Profile data:', { profileData, profileError });
+
+        if (profileError) {
+          console.warn('Error fetching profile data:', profileError);
+          // Continue with login even if profile fetch fails
         }
 
+        if (profileData?.two_factor_enabled) {
+          setRequires2FA(true);
+          setTempCredentials({ email, password });
+          setIsLoading(false);
+          return;
+        }
+      } catch (profileErr) {
+        console.error('Error checking 2FA status:', profileErr);
+        // Continue with login even if 2FA check fails
+      }
+
+      // Store user session
+      try {
+        if (data.session && data.session.access_token) {
+          localStorage.setItem('token', data.session.access_token);
+          localStorage.setItem('email', data.user.email);
+          localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+
+          // Special handling for demo user
+          if (data.user.email === 'demo@example.com') {
+            console.log('Demo user detected, setting special flag');
+            localStorage.setItem('allowDemoUser', 'true');
+          }
+
+          console.log('User session stored successfully');
+
+          // Force a page reload to ensure the app recognizes the new auth state
+          window.location.href = '/';
+        } else {
+          throw new Error('No session data available');
+        }
+      } catch (storageErr) {
+        console.error('Error storing session data:', storageErr);
+        setError('Login successful but failed to store session. Please try again.');
         setIsLoading(false);
-        navigate('/');
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -79,6 +136,9 @@ export default function Login() {
   };
 
   const handle2FAVerify = async (code) => {
+    setIsLoading(true);
+    setError('');
+
     try {
       console.log('Verifying 2FA code...');
 
@@ -94,6 +154,11 @@ export default function Login() {
         throw error;
       }
 
+      if (!data || !data.user) {
+        console.error('Authentication successful but no user data returned');
+        throw new Error('Authentication failed: No user data returned');
+      }
+
       console.log('Authentication successful');
 
       // Get MFA factors
@@ -103,6 +168,11 @@ export default function Login() {
       if (factorsError) {
         console.error('Error getting MFA factors:', factorsError);
         throw factorsError;
+      }
+
+      if (!factorsData) {
+        console.error('No MFA factors data returned');
+        throw new Error('Failed to retrieve MFA factors');
       }
 
       console.log('MFA factors:', factorsData);
@@ -143,20 +213,35 @@ export default function Login() {
       console.log('MFA verification successful:', verifyData);
 
       // Store user session
-      localStorage.setItem('token', data.session.access_token);
-      localStorage.setItem('email', data.user.email);
-      localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+      try {
+        if (data.session && data.session.access_token) {
+          localStorage.setItem('token', data.session.access_token);
+          localStorage.setItem('email', data.user.email);
+          localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
 
-      // Special handling for demo user
-      if (data.user.email === 'demo@example.com') {
-        console.log('Demo user detected after 2FA, setting special flag');
-        localStorage.setItem('allowDemoUser', 'true');
+          // Special handling for demo user
+          if (data.user.email === 'demo@example.com') {
+            console.log('Demo user detected after 2FA, setting special flag');
+            localStorage.setItem('allowDemoUser', 'true');
+          }
+
+          console.log('User session stored successfully after 2FA');
+
+          // Force a page reload to ensure the app recognizes the new auth state
+          window.location.href = '/';
+        } else {
+          throw new Error('No session data available after 2FA');
+        }
+      } catch (storageErr) {
+        console.error('Error storing session data after 2FA:', storageErr);
+        throw new Error('2FA verification successful but failed to store session');
       }
-
-      navigate('/');
     } catch (err) {
       console.error('2FA verification error:', err);
-      throw new Error(err.message || 'Invalid verification code');
+      setError(err.message || 'Invalid verification code');
+      setIsLoading(false);
+      setRequires2FA(false); // Go back to login form
+      return false;
     }
   };
 
@@ -307,6 +392,16 @@ export default function Login() {
             <Link to="/register" className="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
               Create a new account
             </Link>
+          </div>
+
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              className="text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              Use demo account
+            </button>
           </div>
         </div>
       </div>
