@@ -41,13 +41,31 @@ export const bankAccountService = {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) throw new Error('User not authenticated');
 
+      // Check if bank_name exists in the schema
+      // If not, we'll handle it by not sending that field
+      const { data: schemaData, error: schemaError } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'bank_accounts')
+        .eq('column_name', 'bank_name');
+
+      // Prepare the account data
+      let processedData = {
+        ...accountData,
+        user_id: userData.user.id
+      };
+
+      // If bank_name column doesn't exist in the schema, remove it from the data
+      if (schemaError || !schemaData || schemaData.length === 0) {
+        console.warn('bank_name column not found in schema, removing from request');
+        const { bank_name, ...dataWithoutBankName } = processedData;
+        processedData = dataWithoutBankName;
+      }
+
       // Add user_id to the account data
       const { data, error } = await supabase
         .from('bank_accounts')
-        .insert([{
-          ...accountData,
-          user_id: userData.user.id
-        }])
+        .insert([processedData])
         .select();
 
       if (error) throw error;
@@ -61,9 +79,27 @@ export const bankAccountService = {
   // Update an existing bank account
   async updateBankAccount(accountId, accountData) {
     try {
+      // Check if bank_name exists in the schema
+      // If not, we'll handle it by not sending that field
+      const { data: schemaData, error: schemaError } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'bank_accounts')
+        .eq('column_name', 'bank_name');
+
+      // Prepare the account data
+      let processedData = { ...accountData };
+
+      // If bank_name column doesn't exist in the schema, remove it from the data
+      if (schemaError || !schemaData || schemaData.length === 0) {
+        console.warn('bank_name column not found in schema, removing from request');
+        const { bank_name, ...dataWithoutBankName } = processedData;
+        processedData = dataWithoutBankName;
+      }
+
       const { data, error } = await supabase
         .from('bank_accounts')
-        .update(accountData)
+        .update(processedData)
         .eq('id', accountId)
         .select();
 
