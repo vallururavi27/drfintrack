@@ -5,13 +5,10 @@ import { XCircleIcon } from '@heroicons/react/24/outline';
 export default function NotFound() {
   const navigate = useNavigate();
 
-  // Automatically redirect to login after a short delay
+  // Automatically redirect to login immediately
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigate('/login');
-    }, 3000); // 3 seconds delay
-
-    return () => clearTimeout(timer);
+    // Redirect immediately to login page
+    navigate('/login');
   }, [navigate]);
 
   return (

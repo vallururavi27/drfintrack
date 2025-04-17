@@ -38,6 +38,18 @@ const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   if (!token) {
     console.log('No token found, redirecting to login');
+    // Clear any potentially invalid session data
+    localStorage.removeItem('email');
+    localStorage.removeItem('name');
+    localStorage.removeItem('username');
+    localStorage.removeItem('allowDemoUser');
+    // Keep theme settings
+    const themeMode = localStorage.getItem('themeMode');
+    if (themeMode) {
+      const tempThemeMode = themeMode;
+      localStorage.clear();
+      localStorage.setItem('themeMode', tempThemeMode);
+    }
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -133,7 +145,7 @@ function App() {
             <Route path="/404" element={<NotFound />} />
 
             {/* Redirect to dashboard if already authenticated, otherwise to login */}
-            <Route path="*" element={isAuthenticated ? <Navigate to="/" /> : <Navigate to="/404" />} />
+            <Route path="*" element={isAuthenticated ? <Navigate to="/" /> : <Navigate to="/login" />} />
           </Routes>
         </Router>
       </AuthProvider>
