@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import Button from '../components/ui/Button';
 import TwoFactorVerification from '../components/auth/TwoFactorVerification';
-import api from '../services/api';
+import AuthTest from '../components/debug/AuthTest';
 import { supabase } from '../services/supabaseClient';
 
 export default function Login() {
@@ -15,7 +15,6 @@ export default function Login() {
   const [tempCredentials, setTempCredentials] = useState(null);
   const [isEmailUnverified, setIsEmailUnverified] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
-  const navigate = useNavigate();
 
   // Check if we're already logged in
   useEffect(() => {
@@ -276,6 +275,9 @@ export default function Login() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Authentication Test Component */}
+        <AuthTest />
+
         <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10 dark:bg-gray-800">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
