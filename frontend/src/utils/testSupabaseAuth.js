@@ -30,7 +30,7 @@ export const testSupabaseAuth = async () => {
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: 'demo@example.com',
-      password: 'password123',
+      password: 'password',
     });
 
     console.log('Sign in response:', { data, error });
@@ -51,7 +51,7 @@ export const testSupabaseAuth = async () => {
 
     // Sign out after successful test
     await supabase.auth.signOut();
-    
+
     return results;
   } catch (error) {
     console.error('Error testing Supabase auth:', error);

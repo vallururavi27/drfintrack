@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { EnvelopeIcon, LockClosedIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { EnvelopeIcon, LockClosedIcon, UserCircleIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import Button from '../components/ui/Button';
 import TwoFactorVerification from '../components/auth/TwoFactorVerification';
 import AuthTest from '../components/debug/AuthTest';
 import { supabase } from '../services/supabaseClient';
+import { checkAndCreateDemoUser } from '../utils/createDemoUser';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -36,7 +37,7 @@ export default function Login() {
       // Directly call Supabase auth instead of using the form
       const { data, error } = await supabase.auth.signInWithPassword({
         email: 'demo@example.com',
-        password: 'password123',
+        password: 'password',
       });
 
       console.log('Demo login response:', { data, error });
@@ -458,13 +459,39 @@ export default function Login() {
             </Link>
           </div>
 
-          <div className="mt-4 text-center">
+          <div className="mt-4 flex justify-center space-x-4">
             <button
               type="button"
               onClick={handleDemoLogin}
               className="text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
             >
               Use demo account
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setIsLoading(true);
+                setError('');
+                try {
+                  const result = await checkAndCreateDemoUser();
+                  if (result.success) {
+                    setError(`Demo user operation: ${result.message}`);
+                    // Wait a moment before trying to log in
+                    setTimeout(() => handleDemoLogin(), 1000);
+                  } else {
+                    setError(`Failed: ${result.message}`);
+                    setIsLoading(false);
+                  }
+                } catch (err) {
+                  console.error('Error creating demo user:', err);
+                  setError(`Error: ${err.message}`);
+                  setIsLoading(false);
+                }
+              }}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 flex items-center"
+            >
+              <UserPlusIcon className="h-4 w-4 mr-1" />
+              Create demo user
             </button>
           </div>
         </div>
