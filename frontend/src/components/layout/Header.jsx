@@ -32,30 +32,6 @@ export default function Header({ setIsMobileMenuOpen }) {
 
   // Fetch user information
   useEffect(() => {
-    // Check if demo user exists
-    const hasDemo = localStorage.getItem('email') === 'demo@example.com' ||
-                   localStorage.getItem('name') === 'Demo User' ||
-                   localStorage.getItem('username') === 'demo';
-
-    // Check if demo user is allowed (special flag set during login)
-    const allowDemoUser = localStorage.getItem('allowDemoUser') === 'true';
-
-    if (hasDemo && !allowDemoUser) {
-      console.log('Header: Found unauthorized demo user, clearing localStorage...');
-      const themeMode = localStorage.getItem('themeMode');
-      localStorage.clear();
-      if (themeMode) {
-        localStorage.setItem('themeMode', themeMode);
-      }
-    } else if (!hasDemo) {
-      // Just to be safe, remove any potential demo user keys if not a demo user
-      localStorage.removeItem('email');
-      localStorage.removeItem('name');
-      localStorage.removeItem('username');
-      localStorage.removeItem('token');
-    } else {
-      console.log('Header: Demo user is authorized, allowing login');
-    }
 
     const fetchUserInfo = async () => {
       try {
@@ -92,15 +68,7 @@ export default function Header({ setIsMobileMenuOpen }) {
     };
   }, []);
 
-  // Check for demo username and clear it only if not allowed
-  useEffect(() => {
-    const allowDemoUser = localStorage.getItem('allowDemoUser') === 'true';
 
-    if ((username === 'Demo User' || username === 'demo' || username.includes('demo@')) && !allowDemoUser) {
-      console.log('Header: Found unauthorized demo username, clearing...');
-      setUsername('User');
-    }
-  }, [username]);
 
   // Handle click outside to close user menu
   useEffect(() => {
