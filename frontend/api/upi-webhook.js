@@ -4,7 +4,17 @@ import { createClient } from '@supabase/supabase-js';
 // Initialize Supabase client
 const supabaseUrl = 'https://bqurvqysmwsropdaqwot.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ4OTYzMjUsImV4cCI6MjA2MDQ3MjMyNX0.RwNNeunXPC7VRmq78DWgqixjbUyw7w2CZMfmRsnQNTw';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true
+  },
+  global: {
+    headers: {
+      'apikey': supabaseAnonKey
+    }
+  }
+});
 
 export default async function handler(req, res) {
   // Set CORS headers

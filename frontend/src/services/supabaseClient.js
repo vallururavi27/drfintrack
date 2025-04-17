@@ -20,7 +20,18 @@ try {
 
   // Create a minimal client configuration to avoid potential issues
   // Using the simplest possible configuration to minimize errors
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    },
+    global: {
+      headers: {
+        'apikey': supabaseAnonKey
+      }
+    }
+  });
   console.log('Supabase client created successfully');
 
   // Test the connection
