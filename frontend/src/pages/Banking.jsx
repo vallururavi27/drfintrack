@@ -53,6 +53,11 @@ export default function Banking() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
       setIsModalOpen(false);
+      alert('Bank account added successfully!');
+    },
+    onError: (error) => {
+      console.error('Error adding bank account:', error);
+      alert(`Error adding bank account: ${error.message}`);
     }
   });
 
@@ -169,25 +174,38 @@ export default function Banking() {
   // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
+    console.log('Form submitted with data:', formData);
 
     if (!validateForm()) {
+      console.log('Form validation failed with errors:', formErrors);
       return;
     }
 
-    if (currentAccount) {
-      // Update existing account
-      updateMutation.mutate({
-        ...formData,
-        id: currentAccount.id,
-        updated_at: new Date().toISOString()
-      });
-    } else {
-      // Add new account
-      createMutation.mutate({
-        ...formData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+    try {
+      if (currentAccount) {
+        // Update existing account
+        console.log('Updating existing account:', currentAccount.id);
+        updateMutation.mutate({
+          ...formData,
+          id: currentAccount.id,
+          updated_at: new Date().toISOString()
+        });
+      } else {
+        // Add new account
+        console.log('Adding new account with data:', {
+          ...formData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        createMutation.mutate({
+          ...formData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      alert(`Error: ${error.message}`);
     }
   };
 

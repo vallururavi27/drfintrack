@@ -37,9 +37,17 @@ export const bankAccountService = {
   // Create a new bank account
   async createBankAccount(accountData) {
     try {
+      // Get the current user
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) throw new Error('User not authenticated');
+
+      // Add user_id to the account data
       const { data, error } = await supabase
         .from('bank_accounts')
-        .insert([accountData])
+        .insert([{
+          ...accountData,
+          user_id: userData.user.id
+        }])
         .select();
 
       if (error) throw error;

@@ -5,7 +5,9 @@ Follow these steps to check and fix the database schema in Supabase:
 1. Log in to your Supabase dashboard at https://bqurvqysmwsropdaqwot.supabase.co
 2. Navigate to the SQL Editor
 3. Create a new query
-4. Copy and paste the following SQL code that will automatically check and fix the schema:
+4. Copy and paste the following SQL code that will automatically check and fix the schema (run each script separately):
+
+## Script 1: Fix Column Names
 
 ```sql
 -- Check and fix the bank_accounts table schema
@@ -193,21 +195,114 @@ END $$;
 5. Click "Run" to execute the SQL
 6. Verify that the functions have been updated by checking the "Functions" section in the Supabase dashboard
 
-## What This Script Does
+## Script 2: Add Missing Columns
 
-1. **Checks Column Names**: It checks if the bank_accounts table has columns named 'account_name' and 'current_balance'
-2. **Fixes Column Names**: If needed, it renames 'account_name' to 'name' and 'current_balance' to 'balance'
-3. **Handles Data Migration**: If both old and new columns exist, it migrates data and drops the old columns
-4. **Updates Triggers**: It updates the database triggers to use the correct column names
+```sql
+-- Add bank_name column if it doesn't exist
+DO $$
+DECLARE
+    column_exists BOOLEAN;
+BEGIN
+    -- Check if bank_name column exists
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'bank_accounts'
+        AND column_name = 'bank_name'
+    ) INTO column_exists;
 
-## Testing After Running the Script
+    -- If bank_name doesn't exist, add it
+    IF NOT column_exists THEN
+        RAISE NOTICE 'Adding bank_name column to bank_accounts table...';
+        ALTER TABLE bank_accounts ADD COLUMN bank_name VARCHAR(255);
+    ELSE
+        RAISE NOTICE 'bank_name column already exists, no action needed.';
+    END IF;
 
-After running the script, you should test that everything works correctly:
+    -- Check if ifsc_code column exists
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'bank_accounts'
+        AND column_name = 'ifsc_code'
+    ) INTO column_exists;
+
+    -- If ifsc_code doesn't exist, add it
+    IF NOT column_exists THEN
+        RAISE NOTICE 'Adding ifsc_code column to bank_accounts table...';
+        ALTER TABLE bank_accounts ADD COLUMN ifsc_code VARCHAR(11);
+    ELSE
+        RAISE NOTICE 'ifsc_code column already exists, no action needed.';
+    END IF;
+
+    -- Check if icon_name column exists
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'bank_accounts'
+        AND column_name = 'icon_name'
+    ) INTO column_exists;
+
+    -- If icon_name doesn't exist, add it
+    IF NOT column_exists THEN
+        RAISE NOTICE 'Adding icon_name column to bank_accounts table...';
+        ALTER TABLE bank_accounts ADD COLUMN icon_name VARCHAR(100);
+    ELSE
+        RAISE NOTICE 'icon_name column already exists, no action needed.';
+    END IF;
+
+    -- Check if color column exists
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'bank_accounts'
+        AND column_name = 'color'
+    ) INTO column_exists;
+
+    -- If color doesn't exist, add it
+    IF NOT column_exists THEN
+        RAISE NOTICE 'Adding color column to bank_accounts table...';
+        ALTER TABLE bank_accounts ADD COLUMN color VARCHAR(50);
+    ELSE
+        RAISE NOTICE 'color column already exists, no action needed.';
+    END IF;
+
+    RAISE NOTICE 'Schema check and fix completed.';
+END $$;
+```
+
+## What These Scripts Do
+
+1. **Script 1: Fix Column Names**
+   - Checks if the bank_accounts table has columns named 'account_name' and 'current_balance'
+   - Renames 'account_name' to 'name' and 'current_balance' to 'balance' if needed
+   - Handles data migration if both old and new columns exist
+   - Updates the database triggers to use the correct column names
+
+2. **Script 2: Add Missing Columns**
+   - Adds 'bank_name' column if it doesn't exist
+   - Adds 'ifsc_code' column if it doesn't exist
+   - Adds 'icon_name' column if it doesn't exist
+   - Adds 'color' column if it doesn't exist
+
+## Testing After Running the Scripts
+
+After running both scripts, you should test that everything works correctly:
 
 1. Go to the Banking page in the application
 2. Check if the connection test shows all green indicators
-3. Try adding a new bank account
-4. Add a transaction (income or expense) to that account
-5. Verify that the account balance is updated correctly
+3. Try adding a new bank account with the following details:
+   - Bank Name: Axis Bank
+   - Account Name: Axis Salary Account
+   - Account Type: Savings
+   - Account Number: 123456789012
+   - IFSC Code: UTIB0000001 (for Axis Bank)
+   - Current Balance: 10000
+4. Verify that the account appears in the list
+5. Add a transaction (income or expense) to that account
+6. Verify that the account balance is updated correctly
 
-If you encounter any issues, check the Supabase logs for error messages and the browser console for JavaScript errors.
+If you encounter any issues:
+1. Check the browser console for JavaScript errors (press F12 to open developer tools)
+2. Check the Supabase logs for database errors
+3. Try refreshing the page and logging out and back in
