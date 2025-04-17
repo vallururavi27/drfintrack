@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { testSupabaseAuth } from '../../utils/testSupabaseAuth';
+import { testSupabaseAuthFixed } from '../../utils/testSupabaseAuthFixed';
 import Button from '../ui/Button';
 
 export default function AuthTest() {
@@ -10,7 +10,7 @@ export default function AuthTest() {
   const runTest = async () => {
     setIsLoading(true);
     try {
-      const testResults = await testSupabaseAuth();
+      const testResults = await testSupabaseAuthFixed();
       setResults(testResults);
       console.log('Auth test results:', testResults);
     } catch (error) {

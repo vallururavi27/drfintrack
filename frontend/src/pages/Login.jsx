@@ -3,12 +3,8 @@ import { Link } from 'react-router-dom';
 import { EnvelopeIcon, LockClosedIcon, UserCircleIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import Button from '../components/ui/Button';
 import TwoFactorVerification from '../components/auth/TwoFactorVerification';
-import AuthTest from '../components/debug/AuthTest';
-import DirectAuthTest from '../components/debug/DirectAuthTest';
-import FixedAuthTest from '../components/debug/FixedAuthTest';
 import { supabase } from '../services/supabaseClient';
-import { supabaseFixed } from '../services/supabaseClientFixed';
-import { checkAndCreateDemoUser } from '../utils/createDemoUser';
+import { signIn, signInWithDemo, createDemoUser, verify2FA } from '../services/supabaseAuth';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -35,61 +31,19 @@ export default function Login() {
       setIsLoading(true);
       setError('');
 
-      console.log('Attempting direct demo login with fixed Supabase client...');
+      console.log('Attempting direct demo login with Supabase...');
 
-      // Try with the fixed Supabase client first
-      const { data, error } = await supabaseFixed.auth.signInWithPassword({
-        email: 'demo@example.com',
-        password: 'password',
-      });
+      // Use the new auth service for demo login
+      const result = await signInWithDemo();
 
-      console.log('Fixed client demo login response:', { data, error });
-
-      // If fixed client fails, try regular client
-      if (error) {
-        console.log('Fixed client failed, trying regular client...');
-
-        const regularResult = await supabase.auth.signInWithPassword({
-          email: 'demo@example.com',
-          password: 'password',
-        });
-
-        console.log('Regular client demo login response:', regularResult);
-
-        if (regularResult.error) {
-          throw regularResult.error;
-        }
-
-        if (!regularResult.data || !regularResult.data.user) {
-          throw new Error('Regular client login successful but no user data returned');
-        }
-
-        // Use the regular client result
-        // Clear any existing auth data
-        localStorage.removeItem('token');
-        localStorage.removeItem('email');
-        localStorage.removeItem('name');
-        localStorage.removeItem('allowDemoUser');
-
-        // Store the session data
-        localStorage.setItem('token', regularResult.data.session.access_token);
-        localStorage.setItem('email', regularResult.data.user.email);
-        localStorage.setItem('name', regularResult.data.user.user_metadata?.name || regularResult.data.user.email);
-        localStorage.setItem('allowDemoUser', 'true');
-
-        console.log('Demo user session stored successfully (regular client)');
-
-        // Redirect to dashboard
-        setTimeout(() => {
-          window.location.replace('/');
-        }, 500);
-
-        return;
+      if (!result.success) {
+        throw result.error;
       }
 
-      // If we get here, the fixed client worked
+      const { data } = result;
+
       if (!data || !data.user) {
-        throw new Error('Fixed client login successful but no user data returned');
+        throw new Error('Demo login successful but no user data returned');
       }
 
       // Clear any existing auth data
@@ -104,7 +58,7 @@ export default function Login() {
       localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
       localStorage.setItem('allowDemoUser', 'true');
 
-      console.log('Demo user session stored successfully (fixed client)');
+      console.log('Demo user session stored successfully');
 
       // Redirect to dashboard
       setTimeout(() => {
@@ -123,13 +77,13 @@ export default function Login() {
     setError('');
 
     try {
-      console.log('Attempting to login with Supabase:', { email });
+      console.log('Attempting to login with Supabase Auth:', { email });
 
-      // Attempt to login via Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Attempt to login via the new auth service
+      const result = await signIn(email, password);
+
+      // For backward compatibility
+      const { data, error } = result.success ? { data: result.data, error: null } : { data: null, error: result.error };
 
       console.log('Supabase login response:', { data, error });
 
@@ -233,75 +187,20 @@ export default function Login() {
     try {
       console.log('Verifying 2FA code...');
 
-      // First authenticate with email/password
-      console.log('Re-authenticating with email/password...');
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: tempCredentials.email,
-        password: tempCredentials.password,
-      });
+      // Use the new auth service for 2FA verification
+      const result = await verify2FA(
+        tempCredentials.email,
+        tempCredentials.password,
+        code
+      );
 
-      if (error) {
-        console.error('Authentication error:', error);
-        throw error;
+      if (!result.success) {
+        throw result.error;
       }
 
-      if (!data || !data.user) {
-        console.error('Authentication successful but no user data returned');
-        throw new Error('Authentication failed: No user data returned');
-      }
+      const { data } = result;
 
-      console.log('Authentication successful');
-
-      // Get MFA factors
-      console.log('Getting MFA factors...');
-      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
-
-      if (factorsError) {
-        console.error('Error getting MFA factors:', factorsError);
-        throw factorsError;
-      }
-
-      if (!factorsData) {
-        console.error('No MFA factors data returned');
-        throw new Error('Failed to retrieve MFA factors');
-      }
-
-      console.log('MFA factors:', factorsData);
-
-      // Find the TOTP factor
-      const totpFactor = factorsData.totp.find(f => f.factor_type === 'totp');
-      if (!totpFactor) {
-        console.error('No TOTP factor found');
-        throw new Error('No TOTP factor found');
-      }
-
-      // Create a challenge
-      console.log('Creating MFA challenge...');
-      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
-        factorId: totpFactor.id
-      });
-
-      if (challengeError) {
-        console.error('Error creating MFA challenge:', challengeError);
-        throw challengeError;
-      }
-
-      console.log('MFA challenge created:', challengeData);
-
-      // Verify the challenge
-      console.log('Verifying MFA challenge...');
-      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
-        factorId: totpFactor.id,
-        challengeId: challengeData.id,
-        code: code
-      });
-
-      if (verifyError) {
-        console.error('MFA verification error:', verifyError);
-        throw verifyError;
-      }
-
-      console.log('MFA verification successful:', verifyData);
+      console.log('2FA verification successful:', data);
 
       // Store user session
       try {
@@ -380,8 +279,6 @@ export default function Login() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Authentication Test Component */}
-        <AuthTest />
 
         <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10 dark:bg-gray-800">
           <form className="space-y-6" onSubmit={handleSubmit}>
@@ -515,7 +412,7 @@ export default function Login() {
                 setIsLoading(true);
                 setError('');
                 try {
-                  const result = await checkAndCreateDemoUser();
+                  const result = await createDemoUser();
                   if (result.success) {
                     setError(`Demo user operation: ${result.message}`);
                     // Wait a moment before trying to log in
@@ -538,10 +435,7 @@ export default function Login() {
           </div>
         </div>
       </div>
-      {/* Debug components for testing Supabase auth */}
-      <AuthTest />
-      <DirectAuthTest />
-      <FixedAuthTest />
+      {/* No debug components */}
     </div>
   );
 }
