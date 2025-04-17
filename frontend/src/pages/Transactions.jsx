@@ -396,8 +396,8 @@ export default function Transactions() {
               >
                 <option value="All Accounts">All Accounts</option>
                 {bankAccounts.map((account) => (
-                  <option key={account.id} value={account.name}>
-                    {account.name} ({account.bank_name})
+                  <option key={account.id} value={account.account_name}>
+                    {account.account_name} ({account.bank_name})
                   </option>
                 ))}
               </select>
@@ -654,7 +654,7 @@ export default function Transactions() {
                               <option value="">Select Account</option>
                               {bankAccounts.map((account) => (
                                 <option key={account.id} value={account.id}>
-                                  {account.name} ({account.bank_name})
+                                  {account.account_name} ({account.bank_name})
                                 </option>
                               ))}
                             </select>

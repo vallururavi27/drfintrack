@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Web Login Test</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2.49.4"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      white-space: pre-wrap;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Supabase Web Login Test</h1>
+  
+  <div class="form-group">
+    <label for="email">Email:</label>
+    <input type="email" id="email" placeholder="Enter your email">
+  </div>
+  
+  <div class="form-group">
+    <label for="password">Password:</label>
+    <input type="password" id="password" placeholder="Enter your password">
+  </div>
+  
+  <div>
+    <button id="login-btn">Login with Password</button>
+    <button id="test-connection-btn">Test Connection</button>
+    <button id="clear-storage-btn">Clear Storage</button>
+  </div>
+  
+  <div id="result">Results will appear here...</div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginBtn = document.getElementById('login-btn');
+      const testConnectionBtn = document.getElementById('test-connection-btn');
+      const clearStorageBtn = document.getElementById('clear-storage-btn');
+      const resultDiv = document.getElementById('result');
+      
+      // Initialize Supabase client
+      const supabaseUrl = 'https://bqurvqysmwsropdaqwot.supabase.co';
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODM1NjQsImV4cCI6MjA2MDM1OTU2NH0.9ZIVWp-PLXSfD_Ku7C9GvLTFZBnU_qS6HLVuZ4lc8hM';
+      
+      // Create a simple client without any custom configuration
+      const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+      
+      // Test connection
+      testConnectionBtn.addEventListener('click', async function() {
+        resultDiv.innerHTML = 'Testing connection...';
+        
+        try {
+          // Test session
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            resultDiv.innerHTML = `<span class="error">Session error: ${sessionError.message}</span>`;
+            return;
+          }
+          
+          resultDiv.innerHTML = '<span class="success">Connection successful!</span>\n';
+          resultDiv.innerHTML += `Session exists: ${!!sessionData.session}\n\n`;
+          
+          if (sessionData.session) {
+            resultDiv.innerHTML += `User: ${sessionData.session.user.email}\n`;
+            resultDiv.innerHTML += `User ID: ${sessionData.session.user.id}\n`;
+          }
+        } catch (err) {
+          resultDiv.innerHTML = `<span class="error">Unexpected error: ${err.message}</span>`;
+        }
+      });
+      
+      // Login with password
+      loginBtn.addEventListener('click', async function() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        if (!email || !password) {
+          resultDiv.innerHTML = '<span class="error">Please enter both email and password</span>';
+          return;
+        }
+        
+        resultDiv.innerHTML = 'Attempting to login...';
+        
+        try {
+          // Attempt login with minimal options
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (error) {
+            resultDiv.innerHTML = `<span class="error">Login failed: ${error.message}</span>`;
+            console.error('Login error details:', error);
+          } else {
+            resultDiv.innerHTML = '<span class="success">Login successful!</span>';
+            resultDiv.innerHTML += `\n\nUser: ${data.user.email}`;
+            resultDiv.innerHTML += `\nUser ID: ${data.user.id}`;
+            
+            if (data.session) {
+              resultDiv.innerHTML += `\n\nSession token: ${data.session.access_token.substring(0, 20)}...`;
+            }
+            
+            // Store session in localStorage for the main app
+            localStorage.setItem('token', data.session.access_token);
+            localStorage.setItem('email', data.user.email);
+            localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+            
+            resultDiv.innerHTML += '\n\nSession stored in localStorage. You can now try the main app.';
+          }
+        } catch (err) {
+          resultDiv.innerHTML = `<span class="error">Unexpected error: ${err.message}</span>`;
+          console.error('Login unexpected error:', err);
+        }
+      });
+      
+      // Clear local storage
+      clearStorageBtn.addEventListener('click', function() {
+        try {
+          localStorage.clear();
+          resultDiv.innerHTML = '<span class="success">Local storage cleared successfully!</span>';
+          
+          // Also sign out from Supabase
+          supabase.auth.signOut().then(() => {
+            resultDiv.innerHTML += '\n<span class="success">Signed out from Supabase.</span>';
+          }).catch(err => {
+            resultDiv.innerHTML += `\n<span class="error">Error signing out: ${err.message}</span>`;
+          });
+        } catch (err) {
+          resultDiv.innerHTML = `<span class="error">Error clearing storage: ${err.message}</span>`;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

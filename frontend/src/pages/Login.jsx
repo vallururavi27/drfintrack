@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { EnvelopeIcon, LockClosedIcon, UserCircleIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+import { Link, useNavigate } from 'react-router-dom';
+import { EnvelopeIcon, LockClosedIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import Button from '../components/ui/Button';
 import TwoFactorVerification from '../components/auth/TwoFactorVerification';
 import { supabase } from '../services/supabaseClient';
-import { signIn, signInWithDemo, createDemoUser, verify2FA } from '../services/supabaseAuth';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,77 +14,76 @@ export default function Login() {
   const [tempCredentials, setTempCredentials] = useState(null);
   const [isEmailUnverified, setIsEmailUnverified] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('checking');
+  const navigate = useNavigate();
 
-  // Check if we're already logged in
+  // Check Supabase connection on component mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // If we're already logged in, redirect to home
-      window.location.href = '/';
-    }
-  }, []);
+    const checkConnection = async () => {
+      try {
+        console.log('Testing Supabase connection...');
+        const { data, error } = await supabase.auth.getSession();
 
-  // Add a fallback login method for demo purposes
-  const handleDemoLogin = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
+        if (error) {
+          console.error('Supabase connection error:', error);
+          setConnectionStatus('error');
+          setError('Unable to connect to authentication service. Please try again later.');
+        } else {
+          console.log('Supabase connection successful');
+          setConnectionStatus('connected');
 
-      console.log('Attempting direct demo login with Supabase...');
-
-      // Use the new auth service for demo login
-      const result = await signInWithDemo();
-
-      if (!result.success) {
-        throw result.error;
+          // If user is already logged in, redirect to dashboard
+          if (data.session) {
+            console.log('User already has an active session, redirecting to dashboard');
+            navigate('/');
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error checking connection:', err);
+        setConnectionStatus('error');
+        setError('Unable to connect to authentication service. Please try again later.');
       }
+    };
 
-      const { data } = result;
-
-      if (!data || !data.user) {
-        throw new Error('Demo login successful but no user data returned');
-      }
-
-      // Clear any existing auth data
-      localStorage.removeItem('token');
-      localStorage.removeItem('email');
-      localStorage.removeItem('name');
-      localStorage.removeItem('allowDemoUser');
-
-      // Store the session data
-      localStorage.setItem('token', data.session.access_token);
-      localStorage.setItem('email', data.user.email);
-      localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
-      localStorage.setItem('allowDemoUser', 'true');
-
-      console.log('Demo user session stored successfully');
-
-      // Redirect to dashboard
-      setTimeout(() => {
-        window.location.replace('/');
-      }, 500);
-    } catch (err) {
-      console.error('Demo login error:', err);
-      setError(err.message || 'Failed to login with demo account');
-      setIsLoading(false);
-    }
-  };
+    checkConnection();
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
+    // Check if connection is available
+    if (connectionStatus === 'error') {
+      setError('Cannot connect to authentication service. Please check your internet connection and try again.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      console.log('Attempting to login with Supabase Auth:', { email });
+      console.log('Attempting to login with Supabase:', { email });
 
-      // Attempt to login via the new auth service
-      const result = await signIn(email, password);
+      // Validate inputs
+      if (!email || !password) {
+        setError('Please enter both email and password');
+        setIsLoading(false);
+        return;
+      }
 
-      // For backward compatibility
-      const { data, error } = result.success ? { data: result.data, error: null } : { data: null, error: result.error };
+      // Attempt to login via Supabase
+      console.log('Calling Supabase auth.signInWithPassword with:', { email });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      console.log('Supabase login response:', { data, error });
+      console.log('Supabase login response:', {
+        success: !error,
+        hasData: !!data,
+        hasUser: data && !!data.user,
+        hasSession: data && !!data.session,
+        errorMessage: error ? error.message : null
+      });
 
       if (error) {
         // Check if the error is due to email not being verified
@@ -94,20 +92,18 @@ export default function Login() {
           setIsEmailUnverified(true);
         } else {
           setIsEmailUnverified(false);
-          throw error;
+          setError(error.message || 'Invalid email or password');
         }
         setIsLoading(false);
         return;
       }
 
-      if (!data || !data.user) {
-        console.error('Login successful but no user data returned');
-        setError('Login failed: No user data returned');
+      if (!data || !data.user || !data.session) {
+        console.error('Invalid response from Supabase:', data);
+        setError('Login failed: Invalid response from server');
         setIsLoading(false);
         return;
       }
-
-      console.log('User authenticated successfully:', data.user);
 
       // Check if 2FA is required
       try {
@@ -120,8 +116,7 @@ export default function Login() {
         console.log('Profile data:', { profileData, profileError });
 
         if (profileError) {
-          console.warn('Error fetching profile data:', profileError);
-          // Continue with login even if profile fetch fails
+          console.warn('Error fetching profile, proceeding without 2FA:', profileError);
         }
 
         if (profileData?.two_factor_enabled) {
@@ -131,120 +126,109 @@ export default function Login() {
           return;
         }
       } catch (profileErr) {
-        console.error('Error checking 2FA status:', profileErr);
-        // Continue with login even if 2FA check fails
+        console.warn('Error checking 2FA status, proceeding without 2FA:', profileErr);
       }
 
       // Store user session
-      try {
-        console.log('Storing session data:', data);
+      localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('email', data.user.email);
+      localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
 
-        // First, clear any existing auth data to prevent conflicts
-        localStorage.removeItem('token');
-        localStorage.removeItem('email');
-        localStorage.removeItem('name');
-        localStorage.removeItem('allowDemoUser');
-
-        if (data.session && data.session.access_token) {
-          // Store the session data
-          localStorage.setItem('token', data.session.access_token);
-          localStorage.setItem('email', data.user.email);
-          localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
-
-          // Special handling for demo user
-          if (data.user.email === 'demo@example.com') {
-            console.log('Demo user detected, setting special flag');
-            localStorage.setItem('allowDemoUser', 'true');
-          }
-
-          console.log('User session stored successfully');
-
-          // Add a small delay before redirecting
-          setTimeout(() => {
-            console.log('Redirecting to dashboard...');
-            // Force a complete page reload to ensure the app recognizes the new auth state
-            window.location.replace('/');
-          }, 500);
-        } else {
-          throw new Error('No session data available');
-        }
-      } catch (storageErr) {
-        console.error('Error storing session data:', storageErr);
-        setError('Login successful but failed to store session. Please try again.');
-        setIsLoading(false);
+      // Special handling for demo user
+      if (data.user.email === 'demo@example.com') {
+        console.log('Demo user detected, setting special flag');
+        localStorage.setItem('allowDemoUser', 'true');
       }
+
+      console.log('Login successful, redirecting to dashboard');
+      setIsLoading(false);
+      navigate('/');
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Invalid email or password');
+      setError(err.message || 'An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
   };
 
   const handle2FAVerify = async (code) => {
-    setIsLoading(true);
-    setError('');
-
     try {
       console.log('Verifying 2FA code...');
 
-      // Use the new auth service for 2FA verification
-      const result = await verify2FA(
-        tempCredentials.email,
-        tempCredentials.password,
-        code
-      );
+      // First authenticate with email/password
+      console.log('Re-authenticating with email/password...');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: tempCredentials.email,
+        password: tempCredentials.password,
+      });
 
-      if (!result.success) {
-        throw result.error;
+      if (error) {
+        console.error('Authentication error:', error);
+        throw error;
       }
 
-      const { data } = result;
+      console.log('Authentication successful');
 
-      console.log('2FA verification successful:', data);
+      // Get MFA factors
+      console.log('Getting MFA factors...');
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+
+      if (factorsError) {
+        console.error('Error getting MFA factors:', factorsError);
+        throw factorsError;
+      }
+
+      console.log('MFA factors:', factorsData);
+
+      // Find the TOTP factor
+      const totpFactor = factorsData.totp.find(f => f.factor_type === 'totp');
+      if (!totpFactor) {
+        console.error('No TOTP factor found');
+        throw new Error('No TOTP factor found');
+      }
+
+      // Create a challenge
+      console.log('Creating MFA challenge...');
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: totpFactor.id
+      });
+
+      if (challengeError) {
+        console.error('Error creating MFA challenge:', challengeError);
+        throw challengeError;
+      }
+
+      console.log('MFA challenge created:', challengeData);
+
+      // Verify the challenge
+      console.log('Verifying MFA challenge...');
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challengeData.id,
+        code: code
+      });
+
+      if (verifyError) {
+        console.error('MFA verification error:', verifyError);
+        throw verifyError;
+      }
+
+      console.log('MFA verification successful:', verifyData);
 
       // Store user session
-      try {
-        console.log('Storing session data after 2FA:', data);
+      localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('email', data.user.email);
+      localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
 
-        // First, clear any existing auth data to prevent conflicts
-        localStorage.removeItem('token');
-        localStorage.removeItem('email');
-        localStorage.removeItem('name');
-        localStorage.removeItem('allowDemoUser');
-
-        if (data.session && data.session.access_token) {
-          // Store the session data
-          localStorage.setItem('token', data.session.access_token);
-          localStorage.setItem('email', data.user.email);
-          localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
-
-          // Special handling for demo user
-          if (data.user.email === 'demo@example.com') {
-            console.log('Demo user detected after 2FA, setting special flag');
-            localStorage.setItem('allowDemoUser', 'true');
-          }
-
-          console.log('User session stored successfully after 2FA');
-
-          // Add a small delay before redirecting
-          setTimeout(() => {
-            console.log('Redirecting to dashboard after 2FA...');
-            // Force a complete page reload to ensure the app recognizes the new auth state
-            window.location.replace('/');
-          }, 500);
-        } else {
-          throw new Error('No session data available after 2FA');
-        }
-      } catch (storageErr) {
-        console.error('Error storing session data after 2FA:', storageErr);
-        throw new Error('2FA verification successful but failed to store session');
+      // Special handling for demo user
+      if (data.user.email === 'demo@example.com') {
+        console.log('Demo user detected after 2FA, setting special flag');
+        localStorage.setItem('allowDemoUser', 'true');
       }
+
+      navigate('/');
     } catch (err) {
       console.error('2FA verification error:', err);
-      setError(err.message || 'Invalid verification code');
-      setIsLoading(false);
-      setRequires2FA(false); // Go back to login form
-      return false;
+      throw new Error(err.message || 'Invalid verification code');
     }
   };
 
@@ -272,14 +256,16 @@ export default function Login() {
             <UserCircleIcon className="h-12 w-12 text-primary-600 dark:text-primary-400" />
           </div>
         </div>
-        <div className="text-center">
-          <h1 className="text-center text-3xl font-bold text-primary-600 dark:text-primary-400 mt-4">dr<span className="text-secondary-600 dark:text-secondary-400">FinTrack</span></h1>
-          <h2 className="mt-6 text-2xl font-bold text-gray-900 dark:text-white">Sign in to your account</h2>
-        </div>
+        <h1 className="text-center text-3xl font-bold text-primary-600 dark:text-primary-400 mt-4">dr<span className="text-secondary-600 dark:text-secondary-400">FinTrack</span></h1>
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+          Sign in to your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          Personal Finance Management
+        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-
         <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10 dark:bg-gray-800">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
@@ -392,50 +378,14 @@ export default function Login() {
             </div>
           </form>
 
-          <div className="mt-6 text-center">
-            <Link to="/register" className="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
-              Create a new account
-            </Link>
-          </div>
-
-          <div className="mt-4 flex justify-center space-x-4">
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              className="text-sm font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              Use demo account
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                setIsLoading(true);
-                setError('');
-                try {
-                  const result = await createDemoUser();
-                  if (result.success) {
-                    setError(`Demo user operation: ${result.message}`);
-                    // Wait a moment before trying to log in
-                    setTimeout(() => handleDemoLogin(), 1000);
-                  } else {
-                    setError(`Failed: ${result.message}`);
-                    setIsLoading(false);
-                  }
-                } catch (err) {
-                  console.error('Error creating demo user:', err);
-                  setError(`Error: ${err.message}`);
-                  setIsLoading(false);
-                }
-              }}
-              className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 flex items-center"
-            >
-              <UserPlusIcon className="h-4 w-4 mr-1" />
-              Create demo user
-            </button>
-          </div>
+          {/* Connection status message */}
+          {connectionStatus === 'error' && (
+            <div className="mt-6 text-center text-sm text-red-600 dark:text-red-400">
+              Unable to connect to authentication service. Please check your internet connection and try again.
+            </div>
+          )}
         </div>
       </div>
-      {/* No debug components */}
     </div>
   );
 }

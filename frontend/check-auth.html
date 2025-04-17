@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check Authentication</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+    }
+    h2 {
+      margin-top: 0;
+      color: #4f46e5;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .danger {
+      background-color: #ef4444;
+    }
+    pre {
+      background-color: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Authentication Status Checker</h1>
+  
+  <div class="card">
+    <h2>Supabase Session</h2>
+    <div id="session-info">Checking session...</div>
+    <button id="refresh-session">Refresh</button>
+  </div>
+  
+  <div class="card">
+    <h2>LocalStorage</h2>
+    <div id="localstorage-info">Checking localStorage...</div>
+    <button id="refresh-localstorage">Refresh</button>
+  </div>
+  
+  <div class="card">
+    <h2>Actions</h2>
+    <button id="logout-btn">Logout</button>
+    <button id="clear-storage" class="danger">Clear LocalStorage</button>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const sessionInfoDiv = document.getElementById('session-info');
+      const localStorageInfoDiv = document.getElementById('localstorage-info');
+      const refreshSessionBtn = document.getElementById('refresh-session');
+      const refreshLocalStorageBtn = document.getElementById('refresh-localstorage');
+      const logoutBtn = document.getElementById('logout-btn');
+      const clearStorageBtn = document.getElementById('clear-storage');
+      
+      // Initialize Supabase client
+      const supabaseUrl = 'https://bqurvqysmwsropdaqwot.supabase.co';
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODM1NjQsImV4cCI6MjA2MDM1OTU2NH0.9ZIVWp-PLXSfD_Ku7C9GvLTFZBnU_qS6HLVuZ4lc8hM';
+      
+      const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      
+      // Check Supabase session
+      async function checkSession() {
+        sessionInfoDiv.innerHTML = 'Checking session...';
+        
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            sessionInfoDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            return;
+          }
+          
+          if (data.session) {
+            sessionInfoDiv.innerHTML = `
+              <p>✅ User is authenticated</p>
+              <p>User ID: ${data.session.user.id}</p>
+              <p>Email: ${data.session.user.email}</p>
+              <p>Token expires: ${new Date(data.session.expires_at * 1000).toLocaleString()}</p>
+              <pre>${JSON.stringify(data.session.user, null, 2)}</pre>
+            `;
+          } else {
+            sessionInfoDiv.innerHTML = '<p>❌ No active session found</p>';
+          }
+        } catch (err) {
+          sessionInfoDiv.innerHTML = `<p>Error: ${err.message}</p>`;
+        }
+      }
+      
+      // Check localStorage
+      function checkLocalStorage() {
+        localStorageInfoDiv.innerHTML = '';
+        
+        const token = localStorage.getItem('token');
+        const email = localStorage.getItem('email');
+        const name = localStorage.getItem('name');
+        const allowDemoUser = localStorage.getItem('allowDemoUser');
+        
+        if (token) {
+          localStorageInfoDiv.innerHTML += `<p>✅ Token found: ${token.substring(0, 20)}...</p>`;
+        } else {
+          localStorageInfoDiv.innerHTML += '<p>❌ No token found</p>';
+        }
+        
+        if (email) {
+          localStorageInfoDiv.innerHTML += `<p>✅ Email found: ${email}</p>`;
+        } else {
+          localStorageInfoDiv.innerHTML += '<p>❌ No email found</p>';
+        }
+        
+        if (name) {
+          localStorageInfoDiv.innerHTML += `<p>✅ Name found: ${name}</p>`;
+        } else {
+          localStorageInfoDiv.innerHTML += '<p>❌ No name found</p>';
+        }
+        
+        if (allowDemoUser) {
+          localStorageInfoDiv.innerHTML += `<p>✅ Allow Demo User: ${allowDemoUser}</p>`;
+        }
+        
+        // Show all localStorage items
+        localStorageInfoDiv.innerHTML += '<h3>All localStorage items:</h3>';
+        localStorageInfoDiv.innerHTML += '<pre>';
+        
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          let value = localStorage.getItem(key);
+          
+          // Truncate long values
+          if (value && value.length > 100) {
+            value = value.substring(0, 100) + '...';
+          }
+          
+          localStorageInfoDiv.innerHTML += `${key}: ${value}\n`;
+        }
+        
+        localStorageInfoDiv.innerHTML += '</pre>';
+      }
+      
+      // Logout
+      async function logout() {
+        try {
+          const { error } = await supabase.auth.signOut();
+          
+          if (error) {
+            alert(`Error logging out: ${error.message}`);
+            return;
+          }
+          
+          // Clear localStorage items related to authentication
+          localStorage.removeItem('token');
+          localStorage.removeItem('email');
+          localStorage.removeItem('name');
+          localStorage.removeItem('allowDemoUser');
+          
+          alert('Logged out successfully!');
+          
+          // Refresh displays
+          checkSession();
+          checkLocalStorage();
+        } catch (err) {
+          alert(`Error: ${err.message}`);
+        }
+      }
+      
+      // Clear localStorage
+      function clearStorage() {
+        if (confirm('Are you sure you want to clear all localStorage items? This will log you out.')) {
+          localStorage.clear();
+          alert('LocalStorage cleared!');
+          checkLocalStorage();
+          checkSession();
+        }
+      }
+      
+      // Event listeners
+      refreshSessionBtn.addEventListener('click', checkSession);
+      refreshLocalStorageBtn.addEventListener('click', checkLocalStorage);
+      logoutBtn.addEventListener('click', logout);
+      clearStorageBtn.addEventListener('click', clearStorage);
+      
+      // Initial checks
+      checkSession();
+      checkLocalStorage();
+    });
+  </script>
+</body>
+</html>

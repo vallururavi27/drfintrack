@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Auth Test</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Supabase Authentication Test</h1>
+  
+  <div class="form-group">
+    <label for="email">Email:</label>
+    <input type="email" id="email" placeholder="Enter your email">
+  </div>
+  
+  <div class="form-group">
+    <label for="password">Password:</label>
+    <input type="password" id="password" placeholder="Enter your password">
+  </div>
+  
+  <button id="login-btn">Login</button>
+  <button id="test-connection-btn">Test Connection</button>
+  
+  <div id="result">Results will appear here...</div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginBtn = document.getElementById('login-btn');
+      const testConnectionBtn = document.getElementById('test-connection-btn');
+      const resultDiv = document.getElementById('result');
+      
+      // Initialize Supabase client
+      const supabaseUrl = 'https://bqurvqysmwsropdaqwot.supabase.co';
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODM1NjQsImV4cCI6MjA2MDM1OTU2NH0.9ZIVWp-PLXSfD_Ku7C9GvLTFZBnU_qS6HLVuZ4lc8hM';
+      
+      const supabase = supabase.createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true
+        }
+      });
+      
+      // Test connection
+      testConnectionBtn.addEventListener('click', async function() {
+        resultDiv.textContent = 'Testing connection...';
+        
+        try {
+          // Test session
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            resultDiv.textContent = `Session error: ${sessionError.message}`;
+            return;
+          }
+          
+          resultDiv.textContent = 'Connection successful!\n';
+          resultDiv.textContent += `Session exists: ${!!sessionData.session}\n\n`;
+          
+          // Test database access
+          const { data: dbData, error: dbError } = await supabase
+            .from('profiles')
+            .select('count')
+            .limit(1);
+          
+          if (dbError) {
+            resultDiv.textContent += `Database error: ${dbError.message}`;
+            return;
+          }
+          
+          resultDiv.textContent += 'Database access successful!';
+        } catch (err) {
+          resultDiv.textContent = `Unexpected error: ${err.message}`;
+        }
+      });
+      
+      // Login
+      loginBtn.addEventListener('click', async function() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        if (!email || !password) {
+          resultDiv.textContent = 'Please enter both email and password';
+          return;
+        }
+        
+        resultDiv.textContent = 'Attempting to login...';
+        
+        try {
+          // Attempt login
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (error) {
+            resultDiv.textContent = `Login failed: ${error.message}`;
+          } else {
+            resultDiv.textContent = 'Login successful!';
+            resultDiv.textContent += `\n\nUser: ${JSON.stringify(data.user, null, 2)}`;
+            resultDiv.textContent += `\n\nSession: ${JSON.stringify(data.session, null, 2)}`;
+          }
+        } catch (err) {
+          resultDiv.textContent = `Unexpected error: ${err.message}`;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
