@@ -17,6 +17,7 @@ import {
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ExportButton from '../components/ui/ExportButton';
+import ConnectionTest from '../components/debug/ConnectionTest';
 import { bankAccountService } from '../services/bankAccountService';
 import { indianBanks, validateIFSC, validateAccountNumber } from '../data/indianBanks';
 
@@ -209,6 +210,9 @@ export default function Banking() {
 
   return (
     <div className="space-y-3">
+      {/* Supabase Connection Test */}
+      <ConnectionTest />
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-md font-medium text-gray-900 dark:text-white">Banking</h2>
