@@ -10,7 +10,8 @@ import {
   UserIcon,
   DocumentTextIcon,
   ReceiptPercentIcon,
-  BuildingLibraryIcon
+  BuildingLibraryIcon,
+  QrCodeIcon
 } from '@heroicons/react/24/outline';
 import { supabase } from '../../services/supabaseClient';
 
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Banking', href: '/banking', icon: BuildingLibraryIcon },
   { name: 'Transactions', href: '/transactions', icon: CreditCardIcon },
+  { name: 'UPI Transactions', href: '/transactions/upi', icon: QrCodeIcon },
   { name: 'Expenses', href: '/expenses', icon: ReceiptPercentIcon },
   { name: 'Income', href: '/income', icon: BanknotesIcon },
   { name: 'Reports', href: '/reports', icon: DocumentTextIcon },

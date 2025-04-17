@@ -12,6 +12,7 @@ import Layout from './components/layout/Layout'
 // Pages
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
+import UpiTransactions from './pages/UpiTransactions'
 import Budget from './pages/Budget'
 import Analytics from './pages/Analytics'
 import Investments from './pages/Investments'
@@ -90,6 +91,7 @@ function App() {
             <Route path="/banking" element={<Banking />} />
             <Route path="/banking/accounts" element={<BankAccounts />} />
             <Route path="/transactions" element={<Transactions />} />
+            <Route path="/transactions/upi" element={<UpiTransactions />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/income" element={<Income />} />
             <Route path="/reports" element={<Reports />} />

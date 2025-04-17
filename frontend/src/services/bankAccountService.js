@@ -180,6 +180,53 @@ export const bankAccountService = {
   },
 
   /**
+   * Link UPI ID to bank account
+   * @param {string} accountId - Bank account ID
+   * @param {Object} upiData - UPI data object with upi_id, upi_app, and upi_linked properties
+   * @returns {Promise<Object>} Updated bank account
+   */
+  async linkUpiToAccount(accountId, upiData) {
+    try {
+      const { data, error } = await supabase
+        .from('bank_accounts')
+        .update({
+          upi_id: upiData.upi_id,
+          upi_app: upiData.upi_app,
+          upi_linked: upiData.upi_linked,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', accountId)
+        .select();
+
+      if (error) throw error;
+      return data[0];
+    } catch (error) {
+      console.error(`Error linking UPI to account with ID ${accountId}:`, error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Get bank accounts with UPI enabled
+   * @returns {Promise<Array>} Bank accounts with UPI enabled
+   */
+  async getUpiEnabledAccounts() {
+    try {
+      const { data, error } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('upi_linked', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching UPI-enabled accounts:', error.message);
+      throw error;
+    }
+  },
+
+  /**
    * Get bank account balance history
    * @param {string} accountId - Bank account ID
    * @param {string} period - Time period ('month', '3months', '6months', 'year', 'all')
