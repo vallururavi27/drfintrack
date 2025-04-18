@@ -51,26 +51,26 @@
 </head>
 <body>
   <h1>Supabase Web Login Test</h1>
-  
+
   <div class="form-group">
     <label for="email">Email:</label>
     <input type="email" id="email" placeholder="Enter your email">
   </div>
-  
+
   <div class="form-group">
     <label for="password">Password:</label>
     <input type="password" id="password" placeholder="Enter your password">
   </div>
-  
+
   <div>
     <button id="login-btn">Login with Password</button>
     <button id="magic-link-btn">Send Magic Link</button>
     <button id="test-connection-btn">Test Connection</button>
     <button id="clear-storage-btn">Clear Storage</button>
   </div>
-  
+
   <div id="result">Results will appear here...</div>
-  
+
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const loginBtn = document.getElementById('login-btn');
@@ -78,11 +78,11 @@
       const testConnectionBtn = document.getElementById('test-connection-btn');
       const clearStorageBtn = document.getElementById('clear-storage-btn');
       const resultDiv = document.getElementById('result');
-      
+
       // Initialize Supabase client
       const supabaseUrl = 'https://bqurvqysmwsropdaqwot.supabase.co';
-      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODM1NjQsImV4cCI6MjA2MDM1OTU2NH0.9ZIVWp-PLXSfD_Ku7C9GvLTFZBnU_qS6HLVuZ4lc8hM';
-      
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NjQ0NzQsImV4cCI6MjA2MDU0MDQ3NH0.Yx-Ij_Uf4ypJXbCQPKrtfhJZHLTX9_D0j7X6PL0JpUE';
+
       const supabase = supabase.createClient(supabaseUrl, supabaseKey, {
         auth: {
           autoRefreshToken: true,
@@ -90,65 +90,65 @@
           detectSessionInUrl: true
         }
       });
-      
+
       // Test connection
       testConnectionBtn.addEventListener('click', async function() {
         resultDiv.innerHTML = 'Testing connection...';
-        
+
         try {
           // Test session
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          
+
           if (sessionError) {
             resultDiv.innerHTML = `<span class="error">Session error: ${sessionError.message}</span>`;
             return;
           }
-          
+
           resultDiv.innerHTML = '<span class="success">Connection successful!</span>\n';
           resultDiv.innerHTML += `Session exists: ${!!sessionData.session}\n\n`;
-          
+
           if (sessionData.session) {
             resultDiv.innerHTML += `User: ${sessionData.session.user.email}\n`;
             resultDiv.innerHTML += `User ID: ${sessionData.session.user.id}\n`;
             resultDiv.innerHTML += `Session expires at: ${new Date(sessionData.session.expires_at * 1000).toLocaleString()}\n`;
           }
-          
+
           // Test database access
           const { data: dbData, error: dbError } = await supabase
             .from('profiles')
             .select('count')
             .limit(1);
-          
+
           if (dbError) {
             resultDiv.innerHTML += `\n<span class="error">Database error: ${dbError.message}</span>`;
             return;
           }
-          
+
           resultDiv.innerHTML += '\n<span class="success">Database access successful!</span>';
         } catch (err) {
           resultDiv.innerHTML = `<span class="error">Unexpected error: ${err.message}</span>`;
         }
       });
-      
+
       // Login with password
       loginBtn.addEventListener('click', async function() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-        
+
         if (!email || !password) {
           resultDiv.innerHTML = '<span class="error">Please enter both email and password</span>';
           return;
         }
-        
+
         resultDiv.innerHTML = 'Attempting to login...';
-        
+
         try {
           // Attempt login
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
           });
-          
+
           if (error) {
             resultDiv.innerHTML = `<span class="error">Login failed: ${error.message}</span>`;
             console.error('Login error details:', error);
@@ -156,12 +156,12 @@
             resultDiv.innerHTML = '<span class="success">Login successful!</span>';
             resultDiv.innerHTML += `\n\nUser: ${data.user.email}`;
             resultDiv.innerHTML += `\nUser ID: ${data.user.id}`;
-            
+
             if (data.session) {
               resultDiv.innerHTML += `\n\nSession token: ${data.session.access_token.substring(0, 20)}...`;
               resultDiv.innerHTML += `\nExpires at: ${new Date(data.session.expires_at * 1000).toLocaleString()}`;
             }
-            
+
             resultDiv.innerHTML += '\n\nYou can now try the main app at: <a href="/login" target="_blank">/login</a>';
           }
         } catch (err) {
@@ -169,18 +169,18 @@
           console.error('Login unexpected error:', err);
         }
       });
-      
+
       // Send magic link
       magicLinkBtn.addEventListener('click', async function() {
         const email = document.getElementById('email').value;
-        
+
         if (!email) {
           resultDiv.innerHTML = '<span class="error">Please enter your email</span>';
           return;
         }
-        
+
         resultDiv.innerHTML = 'Sending magic link...';
-        
+
         try {
           const { data, error } = await supabase.auth.signInWithOtp({
             email,
@@ -188,7 +188,7 @@
               emailRedirectTo: window.location.origin + '/login'
             }
           });
-          
+
           if (error) {
             resultDiv.innerHTML = `<span class="error">Failed to send magic link: ${error.message}</span>`;
           } else {
@@ -198,13 +198,13 @@
           resultDiv.innerHTML = `<span class="error">Unexpected error: ${err.message}</span>`;
         }
       });
-      
+
       // Clear local storage
       clearStorageBtn.addEventListener('click', function() {
         try {
           localStorage.clear();
           resultDiv.innerHTML = '<span class="success">Local storage cleared successfully!</span>';
-          
+
           // Also sign out from Supabase
           supabase.auth.signOut().then(() => {
             resultDiv.innerHTML += '\n<span class="success">Signed out from Supabase.</span>';
@@ -215,17 +215,17 @@
           resultDiv.innerHTML = `<span class="error">Error clearing storage: ${err.message}</span>`;
         }
       });
-      
+
       // Check for existing session on page load
       (async function() {
         try {
           const { data, error } = await supabase.auth.getSession();
-          
+
           if (error) {
             console.error('Error checking session:', error);
             return;
           }
-          
+
           if (data.session) {
             resultDiv.innerHTML = '<span class="success">You are already logged in!</span>\n';
             resultDiv.innerHTML += `User: ${data.session.user.email}\n`;

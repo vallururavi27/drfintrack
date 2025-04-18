@@ -72,71 +72,75 @@ export default function Login() {
 
       // Attempt to login via Supabase
       console.log('Calling Supabase auth.signInWithPassword with:', { email });
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
 
-      console.log('Supabase login response:', {
-        success: !error,
-        hasData: !!data,
-        hasUser: data && !!data.user,
-        hasSession: data && !!data.session,
-        errorMessage: error ? error.message : null
-      });
-
-      if (error) {
-        // Check if the error is due to email not being verified
-        if (error.message.includes('Email not confirmed')) {
-          setError('Please verify your email before logging in. Check your inbox for a verification link.');
-          setIsEmailUnverified(true);
-        } else {
-          setIsEmailUnverified(false);
-          setError(error.message || 'Invalid email or password');
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      if (!data || !data.user || !data.session) {
-        console.error('Invalid response from Supabase:', data);
-        setError('Login failed: Invalid response from server');
-        setIsLoading(false);
-        return;
-      }
-
-      // Check if 2FA is required
       try {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('two_factor_enabled')
-          .eq('id', data.user.id)
-          .single();
+        // Try to login
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-        console.log('Profile data:', { profileData, profileError });
+        console.log('Supabase login response:', {
+          success: !error,
+          hasData: !!data,
+          hasUser: data && !!data.user,
+          hasSession: data && !!data.session,
+          errorMessage: error ? error.message : null
+        });
 
-        if (profileError) {
-          console.warn('Error fetching profile, proceeding without 2FA:', profileError);
-        }
-
-        if (profileData?.two_factor_enabled) {
-          setRequires2FA(true);
-          setTempCredentials({ email, password });
+        if (error) {
+          console.error('Login error details:', error);
+          // Check if the error is due to email not being verified
+          if (error.message.includes('Email not confirmed')) {
+            setError('Please verify your email before logging in. Check your inbox for a verification link.');
+            setIsEmailUnverified(true);
+          } else {
+            setIsEmailUnverified(false);
+            setError(error.message || 'Invalid email or password');
+          }
           setIsLoading(false);
           return;
         }
-      } catch (profileErr) {
-        console.warn('Error checking 2FA status, proceeding without 2FA:', profileErr);
-      }
 
-      // Store user session
-      localStorage.setItem('token', data.session.access_token);
-      localStorage.setItem('email', data.user.email);
-      localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+        if (!data || !data.user || !data.session) {
+          console.error('Invalid response from Supabase:', data);
+          setError('Login failed: Invalid response from server');
+          setIsLoading(false);
+          return;
+        }
 
-      console.log('Login successful, redirecting to dashboard');
-      setIsLoading(false);
-      navigate('/');
+        // Check if 2FA is required
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('two_factor_enabled')
+            .eq('id', data.user.id)
+            .single();
+
+          console.log('Profile data:', { profileData, profileError });
+
+          if (profileError) {
+            console.warn('Error fetching profile, proceeding without 2FA:', profileError);
+          }
+
+          if (profileData?.two_factor_enabled) {
+            setRequires2FA(true);
+            setTempCredentials({ email, password });
+            setIsLoading(false);
+            return;
+          }
+        } catch (profileErr) {
+          console.warn('Error checking 2FA status, proceeding without 2FA:', profileErr);
+        }
+
+        // Store user session
+        localStorage.setItem('token', data.session.access_token);
+        localStorage.setItem('email', data.user.email);
+        localStorage.setItem('name', data.user.user_metadata?.name || data.user.email);
+
+        console.log('Login successful, redirecting to dashboard');
+        setIsLoading(false);
+        navigate('/');
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'An unexpected error occurred. Please try again.');

@@ -19,27 +19,52 @@ try {
   const isProduction = window.location.hostname === 'drfintrack.vercel.app';
   console.log('Is production environment:', isProduction);
 
-  // Create a minimal client configuration to avoid potential issues
-  // Using the simplest possible configuration to minimize errors
+  // Create a client configuration with explicit headers and enhanced options
   supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: true
+      detectSessionInUrl: true,
+      storageKey: 'drfintrack_supabase_auth' // Custom storage key to avoid conflicts
     },
     global: {
       headers: {
-        'apikey': supabaseAnonKey
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'X-Client-Info': 'drfintrack-web'
+      },
+      // Custom fetch function to add timestamp and ensure headers
+      fetch: (url, options = {}) => {
+        // Add timestamp to prevent caching
+        const separator = url.includes('?') ? '&' : '?';
+        const urlWithTimestamp = `${url}${separator}_t=${Date.now()}`;
+
+        // Ensure headers are properly set
+        const enhancedOptions = {
+          ...options,
+          headers: {
+            ...options.headers,
+            'apikey': supabaseAnonKey,
+            'Authorization': options.headers?.Authorization || `Bearer ${supabaseAnonKey}`
+          }
+        };
+
+        console.log('Enhanced Supabase request:', { url: urlWithTimestamp });
+        return fetch(urlWithTimestamp, enhancedOptions);
       }
     }
   });
   console.log('Supabase client created successfully');
 
-  // Test the connection
+  // Test the connection with comprehensive diagnostics
+  console.log('Testing Supabase connection...');
+
+  // Test auth connection
   supabaseClient.auth.getSession().then(({ data, error }) => {
     if (error) {
       console.error('Error getting session:', error);
     } else {
+      console.log('Auth connection successful');
       console.log('Session retrieved successfully:', !!data.session);
       if (data.session) {
         console.log('User is authenticated:', data.session.user.email);
@@ -47,6 +72,20 @@ try {
         console.log('No active session found');
       }
     }
+  }).catch(err => {
+    console.error('Unexpected error in auth connection test:', err);
+  });
+
+  // Test database connection
+  supabaseClient.from('bank_accounts').select('count').limit(1).then(({ data, error }) => {
+    if (error) {
+      console.error('Database connection error:', error);
+    } else {
+      console.log('Database connection successful');
+      console.log('Data retrieved:', data);
+    }
+  }).catch(err => {
+    console.error('Unexpected error in database connection test:', err);
   });
 
 } catch (error) {

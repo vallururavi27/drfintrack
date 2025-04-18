@@ -9,7 +9,7 @@ const { execSync } = require('child_process');
 
 // Configuration
 const SUPABASE_URL = 'https://bqurvqysmwsropdaqwot.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODM1NjQsImV4cCI6MjA2MDM1OTU2NH0.9ZIVWp-PLXSfD_Ku7C9GvLTFZBnU_qS6HLVuZ4lc8hM';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NjQ0NzQsImV4cCI6MjA2MDU0MDQ3NH0.Yx-Ij_Uf4ypJXbCQPKrtfhJZHLTX9_D0j7X6PL0JpUE';
 
 // Paths
 const supabaseClientPath = path.join(__dirname, 'frontend', 'src', 'services', 'supabaseClient.js');
@@ -40,15 +40,15 @@ const hasCorrectKey = supabaseClientContent.includes(SUPABASE_ANON_KEY);
 
 if (!hasCorrectUrl || !hasCorrectKey) {
   console.log('❌ supabaseClient.js has incorrect Supabase URL or key');
-  
+
   // Create a backup of the original file
   const backupPath = `${supabaseClientPath}.backup`;
   fs.writeFileSync(backupPath, supabaseClientContent);
   console.log(`Created backup at ${backupPath}`);
-  
+
   // Fix the file
   let fixedContent = supabaseClientContent;
-  
+
   if (!hasCorrectUrl) {
     console.log('Fixing Supabase URL...');
     // Replace the URL with the correct one using regex
@@ -57,7 +57,7 @@ if (!hasCorrectUrl || !hasCorrectKey) {
       `const supabaseUrl = '${SUPABASE_URL}'`
     );
   }
-  
+
   if (!hasCorrectKey) {
     console.log('Fixing Supabase anon key...');
     // Replace the key with the correct one using regex
@@ -66,7 +66,7 @@ if (!hasCorrectUrl || !hasCorrectKey) {
       `const supabaseAnonKey = '${SUPABASE_ANON_KEY}'`
     );
   }
-  
+
   // Write the fixed content
   fs.writeFileSync(supabaseClientPath, fixedContent);
   console.log('✅ Fixed supabaseClient.js configuration');
@@ -75,25 +75,25 @@ if (!hasCorrectUrl || !hasCorrectKey) {
 }
 
 // Check for complex client configuration
-const hasComplexConfig = supabaseClientContent.includes('global: {') || 
+const hasComplexConfig = supabaseClientContent.includes('global: {') ||
                          supabaseClientContent.includes('headers: {');
 
 if (hasComplexConfig) {
   console.log('\n❌ supabaseClient.js has complex configuration that might cause issues');
-  
+
   // Create a backup if not already done
   if (hasCorrectUrl && hasCorrectKey) {
     const backupPath = `${supabaseClientPath}.backup`;
     fs.writeFileSync(backupPath, supabaseClientContent);
     console.log(`Created backup at ${backupPath}`);
   }
-  
+
   // Simplify the client configuration
   let fixedContent = supabaseClientContent.replace(
     /supabaseClient\s*=\s*createClient\(\s*supabaseUrl\s*,\s*supabaseAnonKey\s*,\s*\{[^}]*\}\s*\)/s,
     'supabaseClient = createClient(supabaseUrl, supabaseAnonKey)'
   );
-  
+
   // Write the fixed content
   fs.writeFileSync(supabaseClientPath, fixedContent);
   console.log('✅ Simplified supabaseClient.js configuration');

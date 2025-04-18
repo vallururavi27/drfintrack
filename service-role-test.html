@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Service Role Key Test</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      background-color: #f5f5f5;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2563eb;
+    }
+    .warning {
+      color: #b91c1c;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Supabase Service Role Key Test</h1>
+  
+  <div class="warning">
+    Warning: This test uses the service role key which has full access to your database.
+    This is for testing purposes only and should not be used in production code.
+  </div>
+  
+  <div>
+    <button id="test-button">Test Service Role Key</button>
+  </div>
+  
+  <div class="result" id="result">Results will appear here...</div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const resultDiv = document.getElementById('result');
+      const testButton = document.getElementById('test-button');
+      
+      testButton.addEventListener('click', async function() {
+        resultDiv.textContent = 'Testing service role key...';
+        
+        try {
+          // Initialize Supabase client with the service role key
+          const supabaseUrl = 'https://bqurvqysmwsropdaqwot.supabase.co';
+          const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdXJ2cXlzbXdzcm9wZGFxd290Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDc4MzU2NCwiZXhwIjoyMDYwMzU5NTY0fQ.ojFM53vyvbtQC80yQHAm77X3dxlzcBZhUsFtFLYQAu4';
+          
+          // Create a client with the service role key
+          const { createClient } = supabase;
+          const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false
+            },
+            global: {
+              headers: {
+                'apikey': serviceRoleKey,
+                'Authorization': `Bearer ${serviceRoleKey}`
+              }
+            }
+          });
+          
+          // Try a simple query to test the connection
+          const { data, error } = await supabaseAdmin
+            .from('bank_accounts')
+            .select('count')
+            .limit(1);
+          
+          if (error) {
+            throw error;
+          }
+          
+          resultDiv.textContent = 'Service role key is valid! Response:\n' + JSON.stringify(data, null, 2);
+        } catch (error) {
+          resultDiv.textContent = 'Error testing service role key:\n' + JSON.stringify(error, null, 2);
+          console.error('Service role key test error:', error);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
