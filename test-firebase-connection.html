@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Connection Test</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    button {
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    input {
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Firebase Connection Test</h1>
+  
+  <div class="card">
+    <h2>Firebase Configuration</h2>
+    <p>Enter your Firebase configuration:</p>
+    <div>
+      <label for="apiKey">API Key:</label>
+      <input type="text" id="apiKey" placeholder="Your Firebase API Key">
+    </div>
+    <div>
+      <label for="authDomain">Auth Domain:</label>
+      <input type="text" id="authDomain" placeholder="your-project-id.firebaseapp.com">
+    </div>
+    <div>
+      <label for="projectId">Project ID:</label>
+      <input type="text" id="projectId" placeholder="your-project-id">
+    </div>
+    <div>
+      <label for="storageBucket">Storage Bucket:</label>
+      <input type="text" id="storageBucket" placeholder="your-project-id.appspot.com">
+    </div>
+    <div>
+      <label for="messagingSenderId">Messaging Sender ID:</label>
+      <input type="text" id="messagingSenderId" placeholder="Your Messaging Sender ID">
+    </div>
+    <div>
+      <label for="appId">App ID:</label>
+      <input type="text" id="appId" placeholder="Your App ID">
+    </div>
+    <button id="initializeBtn">Initialize Firebase</button>
+    <div id="initStatus"></div>
+  </div>
+
+  <div class="card">
+    <h2>Test Firestore Connection</h2>
+    <button id="testFirestoreBtn" disabled>Test Firestore Connection</button>
+    <div id="firestoreStatus"></div>
+    <pre id="firestoreResult"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Test Authentication</h2>
+    <div>
+      <label for="email">Email:</label>
+      <input type="email" id="email" placeholder="test@example.com">
+    </div>
+    <div>
+      <label for="password">Password:</label>
+      <input type="password" id="password" placeholder="Password">
+    </div>
+    <button id="signInBtn" disabled>Sign In</button>
+    <button id="signOutBtn" disabled>Sign Out</button>
+    <div id="authStatus"></div>
+    <pre id="authResult"></pre>
+  </div>
+
+  <script>
+    let firebaseApp;
+    let db;
+    let auth;
+
+    document.getElementById('initializeBtn').addEventListener('click', () => {
+      const apiKey = document.getElementById('apiKey').value;
+      const authDomain = document.getElementById('authDomain').value;
+      const projectId = document.getElementById('projectId').value;
+      const storageBucket = document.getElementById('storageBucket').value;
+      const messagingSenderId = document.getElementById('messagingSenderId').value;
+      const appId = document.getElementById('appId').value;
+
+      if (!apiKey || !authDomain || !projectId) {
+        document.getElementById('initStatus').innerHTML = '<p class="error">Please fill in at least API Key, Auth Domain, and Project ID</p>';
+        return;
+      }
+
+      const firebaseConfig = {
+        apiKey,
+        authDomain,
+        projectId,
+        storageBucket,
+        messagingSenderId,
+        appId
+      };
+
+      try {
+        // Initialize Firebase
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        db = firebaseApp.firestore();
+        auth = firebaseApp.auth();
+
+        document.getElementById('initStatus').innerHTML = '<p class="success">Firebase initialized successfully!</p>';
+        document.getElementById('testFirestoreBtn').disabled = false;
+        document.getElementById('signInBtn').disabled = false;
+        
+        // Listen for auth state changes
+        auth.onAuthStateChanged((user) => {
+          if (user) {
+            document.getElementById('authStatus').innerHTML = `<p class="success">User signed in: ${user.email}</p>`;
+            document.getElementById('signOutBtn').disabled = false;
+          } else {
+            document.getElementById('authStatus').innerHTML = '<p>No user signed in</p>';
+            document.getElementById('signOutBtn').disabled = true;
+          }
+        });
+      } catch (error) {
+        document.getElementById('initStatus').innerHTML = `<p class="error">Error initializing Firebase: ${error.message}</p>`;
+      }
+    });
+
+    document.getElementById('testFirestoreBtn').addEventListener('click', async () => {
+      try {
+        document.getElementById('firestoreStatus').innerHTML = '<p>Testing connection...</p>';
+        
+        // Create a test document
+        const testCollection = db.collection('connection_test');
+        const docRef = await testCollection.add({
+          timestamp: new Date().toISOString(),
+          test: 'Connection successful'
+        });
+        
+        // Get the document
+        const docSnap = await docRef.get();
+        const data = docSnap.data();
+        
+        // Display the result
+        document.getElementById('firestoreStatus').innerHTML = '<p class="success">Firestore connection successful!</p>';
+        document.getElementById('firestoreResult').textContent = JSON.stringify(data, null, 2);
+        
+        // Clean up the test document
+        await docRef.delete();
+      } catch (error) {
+        document.getElementById('firestoreStatus').innerHTML = `<p class="error">Error testing Firestore: ${error.message}</p>`;
+        document.getElementById('firestoreResult').textContent = JSON.stringify(error, null, 2);
+      }
+    });
+
+    document.getElementById('signInBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        document.getElementById('authStatus').innerHTML = '<p class="error">Please enter email and password</p>';
+        return;
+      }
+
+      try {
+        document.getElementById('authStatus').innerHTML = '<p>Signing in...</p>';
+        
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        document.getElementById('authStatus').innerHTML = `<p class="success">Signed in as: ${user.email}</p>`;
+        document.getElementById('authResult').textContent = JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          displayName: user.displayName
+        }, null, 2);
+      } catch (error) {
+        document.getElementById('authStatus').innerHTML = `<p class="error">Error signing in: ${error.message}</p>`;
+        document.getElementById('authResult').textContent = JSON.stringify(error, null, 2);
+      }
+    });
+
+    document.getElementById('signOutBtn').addEventListener('click', async () => {
+      try {
+        await auth.signOut();
+        document.getElementById('authStatus').innerHTML = '<p>Signed out successfully</p>';
+        document.getElementById('authResult').textContent = '';
+      } catch (error) {
+        document.getElementById('authStatus').innerHTML = `<p class="error">Error signing out: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

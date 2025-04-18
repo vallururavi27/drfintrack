@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Common functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // User profiles
+    match /user_profiles/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Bank accounts
+    match /bank_accounts/{accountId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user_id;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.user_id;
+    }
+    
+    // Categories
+    match /categories/{categoryId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user_id;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.user_id;
+    }
+    
+    // Transactions
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user_id;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.user_id;
+    }
+    
+    // Investments
+    match /investments/{investmentId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user_id;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.user_id;
+    }
+    
+    // Investment categories
+    match /investment_categories/{categoryId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user_id;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.user_id;
+    }
+    
+    // Budgets
+    match /budgets/{budgetId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.user_id;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.user_id;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.user_id;
+    }
+    
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

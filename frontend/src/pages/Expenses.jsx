@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { expenseService } from '../services/firebaseExpenseService';
+import { categoryService } from '../services/firebaseCategoryService';
+import { bankAccountService } from '../services/firebaseBankAccountService';
 import {
   PlusIcon,
   PencilIcon,
@@ -6,32 +10,101 @@ import {
   ArrowPathIcon,
   FunnelIcon,
   ArrowDownTrayIcon,
-  ReceiptPercentIcon
+  ReceiptPercentIcon,
+  ArrowUpIcon,
+  ArrowDownIcon
 } from '@heroicons/react/24/outline';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ExportButton from '../components/ui/ExportButton';
 
 export default function Expenses() {
-  // Sample expense categories
-  const categories = [
-    'Food & Dining', 'Shopping', 'Housing', 'Transportation',
-    'Entertainment', 'Health & Fitness', 'Travel', 'Education',
-    'Personal Care', 'Utilities', 'Insurance', 'Taxes', 'Other'
-  ];
+  const queryClient = useQueryClient();
+  const [selectedPeriod, setSelectedPeriod] = useState('month');
 
-  // Expenses data
-  const [expenses, setExpenses] = useState([]);
+  // Fetch expenses
+  const {
+    data: expenses = [],
+    isLoading: isLoadingExpenses,
+    error: expensesError
+  } = useQuery({
+    queryKey: ['expenses'],
+    queryFn: expenseService.getExpenses
+  });
+
+  // Fetch expense stats
+  const {
+    data: expenseStats,
+    isLoading: isLoadingStats
+  } = useQuery({
+    queryKey: ['expenseStats', selectedPeriod],
+    queryFn: () => expenseService.getExpenseStats(selectedPeriod)
+  });
+
+  // Fetch categories
+  const {
+    data: categoriesData = [],
+    isLoading: isLoadingCategories
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: categoryService.getCategories
+  });
+
+  // Fetch bank accounts
+  const {
+    data: bankAccounts = [],
+    isLoading: isLoadingAccounts
+  } = useQuery({
+    queryKey: ['bankAccounts'],
+    queryFn: bankAccountService.getBankAccounts
+  });
+
+  // Filter expense categories to only show expense categories
+  const expenseCategories = categoriesData
+    .filter(cat => cat.type === 'expense' || !cat.type)
+    .map(cat => cat.name);
 
   // State for add/edit expense modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentExpense, setCurrentExpense] = useState(null);
   const [formData, setFormData] = useState({
     description: '',
-    category: 'Food & Dining',
+    category_id: '',
     amount: 0,
-    date: new Date().toISOString().split('T')[0],
-    paymentMethod: 'Credit Card'
+    transaction_date: new Date().toISOString().split('T')[0],
+    account_id: '',
+    payment_method: 'Credit Card',
+    notes: ''
+  });
+
+  // Add expense mutation
+  const addExpenseMutation = useMutation({
+    mutationFn: expenseService.addExpense,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expenseStats'] });
+      queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
+    }
+  });
+
+  // Update expense mutation
+  const updateExpenseMutation = useMutation({
+    mutationFn: ({ id, data }) => expenseService.updateExpense(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expenseStats'] });
+      queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
+    }
+  });
+
+  // Delete expense mutation
+  const deleteExpenseMutation = useMutation({
+    mutationFn: expenseService.deleteExpense,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expenseStats'] });
+      queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
+    }
   });
 
   // Handle form input changes
@@ -48,10 +121,12 @@ export default function Expenses() {
     setCurrentExpense(null);
     setFormData({
       description: '',
-      category: 'Food & Dining',
+      category_id: categoriesData.length > 0 ? categoriesData[0].id : '',
       amount: 0,
-      date: new Date().toISOString().split('T')[0],
-      paymentMethod: 'Credit Card'
+      transaction_date: new Date().toISOString().split('T')[0],
+      account_id: bankAccounts.length > 0 ? bankAccounts[0].id : '',
+      payment_method: 'Credit Card',
+      notes: ''
     });
     setIsModalOpen(true);
   };
@@ -59,56 +134,75 @@ export default function Expenses() {
   // Open modal for editing expense
   const handleEditExpense = (expense) => {
     setCurrentExpense(expense);
+
+    // Format transaction date for the form
+    let formattedDate;
+    if (expense.transaction_date && expense.transaction_date.toDate) {
+      // Handle Firestore Timestamp
+      formattedDate = expense.transaction_date.toDate().toISOString().split('T')[0];
+    } else if (typeof expense.transaction_date === 'string') {
+      // Handle string date
+      formattedDate = expense.transaction_date;
+    } else {
+      // Default to today
+      formattedDate = new Date().toISOString().split('T')[0];
+    }
+
     setFormData({
-      description: expense.description,
-      category: expense.category,
-      amount: expense.amount,
-      date: expense.date,
-      paymentMethod: expense.paymentMethod
+      description: expense.description || '',
+      category_id: expense.category_id || '',
+      amount: expense.amount || 0,
+      transaction_date: formattedDate,
+      account_id: expense.account_id || '',
+      payment_method: expense.payment_method || 'Credit Card',
+      notes: expense.notes || ''
     });
     setIsModalOpen(true);
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (currentExpense) {
-      // Update existing expense
-      setExpenses(expenses.map(exp =>
-        exp.id === currentExpense.id
-          ? { ...exp, ...formData }
-          : exp
-      ));
-    } else {
-      // Add new expense
-      const newExpense = {
-        id: Date.now(),
-        ...formData
-      };
-      setExpenses([...expenses, newExpense]);
-    }
+    try {
+      if (currentExpense) {
+        // Update existing expense
+        await updateExpenseMutation.mutateAsync({
+          id: currentExpense.id,
+          data: formData
+        });
+      } else {
+        // Add new expense
+        await addExpenseMutation.mutateAsync(formData);
+      }
 
-    setIsModalOpen(false);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving expense:', error);
+      alert('Error saving expense: ' + error.message);
+    }
   };
 
   // Handle expense deletion
-  const handleDeleteExpense = (id) => {
+  const handleDeleteExpense = async (id) => {
     if (window.confirm('Are you sure you want to delete this expense?')) {
-      setExpenses(expenses.filter(exp => exp.id !== id));
+      try {
+        await deleteExpenseMutation.mutateAsync(id);
+      } catch (error) {
+        console.error('Error deleting expense:', error);
+        alert('Error deleting expense: ' + error.message);
+      }
     }
   };
 
   // Calculate total expenses
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalExpenses = expenseStats?.totalExpenses || expenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
 
-  // Group expenses by category for the chart
-  const expensesByCategory = categories.map(category => {
-    const amount = expenses
-      .filter(expense => expense.category === category)
-      .reduce((sum, expense) => sum + expense.amount, 0);
-    return { category, amount };
-  }).filter(item => item.amount > 0);
+  // Get expenses by category for the chart
+  const expensesByCategory = expenseStats?.categoryData || [];
+
+  // Get top expense category
+  const topCategory = expensesByCategory.length > 0 ? expensesByCategory[0].name : 'None';
 
   return (
     <div className="space-y-3">
@@ -137,11 +231,16 @@ export default function Expenses() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-md font-medium text-gray-900 dark:text-white">Expense Summary</h2>
           <div className="flex space-x-2">
-            <select className="input text-xs py-1 px-2">
-              <option>This Month</option>
-              <option>Last Month</option>
-              <option>Last 3 Months</option>
-              <option>This Year</option>
+            <select
+              className="input text-xs py-1 px-2"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+            >
+              <option value="month">This Month</option>
+              <option value="3months">Last 3 Months</option>
+              <option value="6months">Last 6 Months</option>
+              <option value="year">This Year</option>
+              <option value="all">All Time</option>
             </select>
           </div>
         </div>
@@ -183,9 +282,7 @@ export default function Expenses() {
               <div className="ml-3">
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Top Category</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {expensesByCategory.length > 0
-                    ? expensesByCategory.sort((a, b) => b.amount - a.amount)[0].category
-                    : 'None'}
+                  {isLoadingStats ? 'Loading...' : topCategory}
                 </p>
               </div>
             </div>
@@ -239,7 +336,25 @@ export default function Expenses() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
-              {expenses.length > 0 ? (
+              {isLoadingExpenses ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <ArrowPathIcon className="h-12 w-12 text-gray-400 mb-3 animate-spin" />
+                      <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">Loading expenses...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : expensesError ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <p className="text-red-500 dark:text-red-400 text-lg font-medium mb-1">Error loading expenses</p>
+                      <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">{expensesError.message}</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : expenses.length > 0 ? (
                 expenses.map((expense) => (
                   <tr key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                     <td className="px-4 py-2 whitespace-nowrap">
@@ -247,17 +362,19 @@ export default function Expenses() {
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                        {expense.category}
+                        {expense.categories?.name || 'Uncategorized'}
                       </span>
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                      {expense.date}
+                      {expense.transaction_date && expense.transaction_date.toDate ?
+                        expense.transaction_date.toDate().toLocaleDateString() :
+                        new Date(expense.transaction_date).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                      {expense.paymentMethod}
+                      {expense.payment_method || 'Unknown'}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-right text-red-600 dark:text-red-400">
-                      ₹{expense.amount.toLocaleString()}
+                      ₹{parseFloat(expense.amount).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-right text-xs font-medium">
                       <button
@@ -333,15 +450,23 @@ export default function Expenses() {
                             Category
                           </label>
                           <select
-                            name="category"
-                            id="category"
-                            value={formData.category}
+                            name="category_id"
+                            id="category_id"
+                            value={formData.category_id}
                             onChange={handleInputChange}
                             className="input mt-1 block w-full text-sm"
                           >
-                            {categories.map(category => (
-                              <option key={category} value={category}>{category}</option>
-                            ))}
+                            {isLoadingCategories ? (
+                              <option value="" disabled>Loading categories...</option>
+                            ) : (
+                              categoriesData
+                                .filter(cat => cat.type === 'expense' || !cat.type)
+                                .map(category => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))
+                            )}
                           </select>
                         </div>
                         <div>
@@ -365,27 +490,27 @@ export default function Expenses() {
                           </div>
                         </div>
                         <div>
-                          <label htmlFor="date" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <label htmlFor="transaction_date" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             Date
                           </label>
                           <input
                             type="date"
-                            name="date"
-                            id="date"
-                            value={formData.date}
+                            name="transaction_date"
+                            id="transaction_date"
+                            value={formData.transaction_date}
                             onChange={handleInputChange}
                             className="input mt-1 block w-full text-sm"
                             required
                           />
                         </div>
                         <div>
-                          <label htmlFor="paymentMethod" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <label htmlFor="payment_method" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             Payment Method
                           </label>
                           <select
-                            name="paymentMethod"
-                            id="paymentMethod"
-                            value={formData.paymentMethod}
+                            name="payment_method"
+                            id="payment_method"
+                            value={formData.payment_method}
                             onChange={handleInputChange}
                             className="input mt-1 block w-full text-sm"
                           >
@@ -396,6 +521,43 @@ export default function Expenses() {
                             <option value="UPI">UPI</option>
                             <option value="Other">Other</option>
                           </select>
+                        </div>
+                        <div>
+                          <label htmlFor="account_id" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Bank Account
+                          </label>
+                          <select
+                            name="account_id"
+                            id="account_id"
+                            value={formData.account_id}
+                            onChange={handleInputChange}
+                            className="input mt-1 block w-full text-sm"
+                          >
+                            {isLoadingAccounts ? (
+                              <option value="" disabled>Loading accounts...</option>
+                            ) : bankAccounts.length === 0 ? (
+                              <option value="" disabled>No accounts available</option>
+                            ) : (
+                              bankAccounts.map(account => (
+                                <option key={account.id} value={account.id}>
+                                  {account.name} ({account.bank_name})
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="notes" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Notes (Optional)
+                          </label>
+                          <textarea
+                            name="notes"
+                            id="notes"
+                            value={formData.notes}
+                            onChange={handleInputChange}
+                            className="input mt-1 block w-full text-sm"
+                            rows="2"
+                          ></textarea>
                         </div>
                       </div>
                     </div>

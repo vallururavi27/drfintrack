@@ -25,30 +25,54 @@ DrFinTrack is a modern personal finance management web application designed to h
 - Heroicons for icons
 
 ### Backend
+- Firebase (Firestore database, Authentication, Storage)
+- Firestore Security Rules for data protection
+- Cloud Functions for custom server logic
+
+### Legacy Backend (Being Migrated)
 - Supabase (PostgreSQL database, Authentication, Storage)
-- Row Level Security (RLS) for data protection
-- Edge Functions for custom server logic
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js (v14 or higher)
 - npm or yarn
-- Supabase account
+- Firebase account
 
-### Supabase Setup
+### Firebase Setup
 
-1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Note your Supabase URL and anon key from the API settings
-3. Run the database schema setup:
-   - Go to the SQL Editor in your Supabase dashboard
-   - Copy the contents of `supabase/schema.sql`
-   - Create a new query, paste the SQL, and run it
-4. Configure authentication:
-   - Go to Authentication → Settings
-   - Enable Email Signup
-   - Set up your Site URL (your frontend URL)
-   - Customize email templates for confirmation and password reset
+1. Create a new Firebase project at [firebase.google.com](https://firebase.google.com)
+2. Enable Firestore Database:
+   - Go to Firestore Database in your Firebase console
+   - Create database in production mode
+   - Choose a location close to your users
+3. Set up Authentication:
+   - Go to Authentication → Sign-in method
+   - Enable Email/Password provider
+   - Configure password requirements
+4. Set up Security Rules:
+   - Go to Firestore Database → Rules
+   - Use the security rules from `firestore.rules`
+5. Create a Web App:
+   - Click on the web icon (</>) in the project overview
+   - Register your app and get your Firebase configuration
+
+### Supabase to Firebase Migration
+
+1. Install required packages:
+   ```
+   npm install firebase-admin @supabase/supabase-js
+   ```
+
+2. Generate a Firebase service account key:
+   - Go to Firebase Console → Project settings → Service accounts
+   - Click "Generate new private key"
+   - Save the JSON file as `firebase-service-account.json` in the project root
+
+3. Run the migration script:
+   ```
+   node migrate-data-to-firebase.js
+   ```
 
 ### Frontend Setup
 
@@ -60,8 +84,12 @@ DrFinTrack is a modern personal finance management web application designed to h
 
 2. Create a `.env.local` file in the frontend directory:
    ```
-   REACT_APP_SUPABASE_URL=https://bqurvqysmwsropdaqwot.supabase.co
-   REACT_APP_SUPABASE_ANON_KEY=your-anon-key
+   VITE_FIREBASE_API_KEY=your-api-key
+   VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project-id
+   VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
+   VITE_FIREBASE_APP_ID=your-app-id
    ```
 
 3. Start the development server:
@@ -73,7 +101,7 @@ DrFinTrack is a modern personal finance management web application designed to h
    - Frontend: http://localhost:5173
 
 ### Authentication
-The application uses Supabase Authentication for secure user management.
+The application uses Firebase Authentication for secure user management.
 
 ## Project Structure
 
@@ -90,8 +118,9 @@ drfintrack/
 │   │   ├── App.jsx          # Main app component
 │   │   └── index.js         # Entry point
 │   └── package.json         # Dependencies
-├── supabase/                # Supabase configuration
-│   └── schema.sql           # Database schema
+├── firebase/                # Firebase configuration
+│   ├── firestore.rules      # Firestore security rules
+│   └── firestore.indexes.json # Firestore indexes
 └── README.md                # Project documentation
 ```
 
@@ -101,7 +130,7 @@ drfintrack/
 - **Two-Factor Authentication**: Adds an additional layer of security
 - **Backup Codes**: Provides emergency access if a user loses their authenticator device
 - **Login History**: Tracks login attempts for security monitoring
-- **Row Level Security**: Ensures users can only access their own data
+- **Firestore Security Rules**: Ensures users can only access their own data
 
 ## Deployment
 
@@ -109,7 +138,7 @@ drfintrack/
 
 1. Push your code to GitHub
 2. Connect your repository to Vercel
-3. Set environment variables for Supabase URL and anon key
+3. Set environment variables for Firebase configuration
 4. Deploy with a single click
 
 ## License
@@ -119,6 +148,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgements
 
 - [React](https://reactjs.org/)
-- [Supabase](https://supabase.com/)
+- [Firebase](https://firebase.google.com/)
+- [Supabase](https://supabase.com/) (Legacy)
 - [TailwindCSS](https://tailwindcss.com/)
 - [Heroicons](https://heroicons.com/)

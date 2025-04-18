@@ -16,7 +16,7 @@ import {
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ExportButton from '../components/ui/ExportButton';
-import { investmentService } from '../services/investmentService';
+import { firebaseInvestmentService } from '../services/firebaseInvestmentService';
 import {
   LineChart,
   Line,
@@ -61,7 +61,7 @@ export default function Investments() {
     refetch: refetchInvestments
   } = useQuery({
     queryKey: ['investments'],
-    queryFn: investmentService.getInvestments
+    queryFn: firebaseInvestmentService.getInvestments
   });
 
   // Fetch investment categories
@@ -70,7 +70,7 @@ export default function Investments() {
     isLoading: isLoadingCategories
   } = useQuery({
     queryKey: ['investmentCategories'],
-    queryFn: investmentService.getInvestmentCategories
+    queryFn: firebaseInvestmentService.getInvestmentCategories
   });
 
   // Fetch investment stats
@@ -81,12 +81,12 @@ export default function Investments() {
     refetch: refetchStats
   } = useQuery({
     queryKey: ['investmentStats'],
-    queryFn: investmentService.getInvestmentStats
+    queryFn: firebaseInvestmentService.getInvestmentStats
   });
 
   // Create investment mutation
   const createMutation = useMutation({
-    mutationFn: investmentService.createInvestment,
+    mutationFn: firebaseInvestmentService.createInvestment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investments'] });
       queryClient.invalidateQueries({ queryKey: ['investmentStats'] });
@@ -96,7 +96,7 @@ export default function Investments() {
 
   // Update investment mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => investmentService.updateInvestment(id, data),
+    mutationFn: ({ id, data }) => firebaseInvestmentService.updateInvestment(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investments'] });
       queryClient.invalidateQueries({ queryKey: ['investmentStats'] });
@@ -107,7 +107,7 @@ export default function Investments() {
 
   // Delete investment mutation
   const deleteMutation = useMutation({
-    mutationFn: investmentService.deleteInvestment,
+    mutationFn: firebaseInvestmentService.deleteInvestment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investments'] });
       queryClient.invalidateQueries({ queryKey: ['investmentStats'] });

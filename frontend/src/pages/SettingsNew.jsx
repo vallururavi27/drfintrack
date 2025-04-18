@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { firebaseUserProfileService } from '../services/firebaseUserProfileService';
+import { auth } from '../services/firebaseClient';
 import ToggleSwitch from '../components/ui/ToggleSwitch';
 import { setThemeMode, getThemeMode, isDarkMode, THEME_MODES } from '../utils/themeUtils';
 import {
@@ -16,20 +19,17 @@ import {
   CreditCardIcon,
   ChartBarIcon,
   ComputerDesktopIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  CheckIcon
 } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 
 export default function SettingsNew() {
+  const queryClient = useQueryClient();
+
   // Theme settings
   const [currentThemeMode, setCurrentThemeMode] = useState(getThemeMode());
   const [darkModeActive, setDarkModeActive] = useState(isDarkMode());
-
-  // Profile settings
-  const [name, setName] = useState('Dr. Ravi');
-  const [spouseName, setSpouseName] = useState('Mrs. Ravi');
-  const [profileImage, setProfileImage] = useState('/profile_ravi.jpg');
-  const [currency, setCurrency] = useState('INR');
 
   // Sync settings
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -37,11 +37,72 @@ export default function SettingsNew() {
   const [autoSync, setAutoSync] = useState('off');
   const [lastSync, setLastSync] = useState('Never');
 
+  // Fetch user profile
+  const {
+    data: userProfile,
+    isLoading: isLoadingProfile,
+    error: profileError
+  } = useQuery({
+    queryKey: ['userProfile'],
+    queryFn: firebaseUserProfileService.getUserProfile
+  });
+
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: firebaseUserProfileService.updateUserProfile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+    }
+  });
+
+  // Upload profile image mutation
+  const uploadImageMutation = useMutation({
+    mutationFn: firebaseUserProfileService.uploadProfileImage,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+    }
+  });
+
+  // Update theme mutation
+  const updateThemeMutation = useMutation({
+    mutationFn: firebaseUserProfileService.updateUserTheme,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+    }
+  });
+
+  // Delete account mutation
+  const deleteAccountMutation = useMutation({
+    mutationFn: firebaseUserProfileService.deleteUserAccount
+  });
+
+  // Extract profile data and create state for editable fields
+  const [name, setName] = useState('');
+  const [spouseName, setSpouseName] = useState('');
+  const [currency, setCurrency] = useState('INR');
+  const profileImage = userProfile?.avatar_url || '/profile_ravi.jpg';
+
+  // Update state when profile data is loaded
+  useEffect(() => {
+    if (userProfile) {
+      setName(userProfile.display_name || '');
+      setSpouseName(userProfile.spouse_name || '');
+      setCurrency(userProfile.currency || 'INR');
+    }
+  }, [userProfile]);
+
   // Handle theme mode change
-  const handleThemeModeChange = (mode) => {
+  const handleThemeModeChange = async (mode) => {
     setCurrentThemeMode(mode);
     setThemeMode(mode);
     setDarkModeActive(isDarkMode());
+
+    // Update theme in Firebase
+    try {
+      await updateThemeMutation.mutateAsync(mode);
+    } catch (error) {
+      console.error('Error updating theme:', error);
+    }
   };
 
   // Update state when theme changes
@@ -61,36 +122,30 @@ export default function SettingsNew() {
   }, []);
 
   // Handle data export
-  const handleExportData = () => {
-    // Create a data object with all the user data
-    const userData = {
-      profile: {
-        name,
-        spouseName,
-        profileImage,
-        currency
-      },
-      settings: {
-        isDarkMode,
-        autoSync
-      }
-    };
+  const handleExportData = async () => {
+    try {
+      // Get user data from Firebase
+      const userData = await firebaseUserProfileService.exportUserData();
 
-    // Convert to JSON and create a blob
-    const jsonData = JSON.stringify(userData, null, 2);
-    const blob = new Blob([jsonData], { type: 'application/json' });
+      // Convert to JSON and create a blob
+      const jsonData = JSON.stringify(userData, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
 
-    // Create a download link and trigger it
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'drFinTrack_data.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      // Create a download link and trigger it
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'drFinTrack_data.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-    alert('Data exported successfully!');
+      alert('Data exported successfully!');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data: ' + error.message);
+    }
   };
 
   // Handle data import
@@ -133,25 +188,59 @@ export default function SettingsNew() {
   };
 
   // Handle account deletion
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      // In a real app, this would call an API to delete the account
-      alert('Account deleted successfully!');
-      // Redirect to login page or clear local storage
-      localStorage.clear();
-      window.location.href = '/login';
+      try {
+        const password = prompt('Please enter your password to confirm deletion:');
+        if (!password) return;
+
+        await deleteAccountMutation.mutateAsync(password);
+        alert('Your account has been deleted successfully.');
+        localStorage.clear();
+        window.location.href = '/login';
+      } catch (error) {
+        console.error('Error deleting account:', error);
+        alert('Failed to delete account: ' + error.message);
+      }
+    }
+  };
+
+  // Handle save profile
+  const handleSaveProfile = async () => {
+    try {
+      await updateProfileMutation.mutateAsync({
+        display_name: name,
+        spouse_name: spouseName,
+        currency: currency
+      });
+
+      alert('Profile saved successfully!');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Failed to save profile: ' + error.message);
     }
   };
 
   // Handle profile image change
-  const handleProfileImageChange = (event) => {
+  const handleProfileImageChange = async (event) => {
     const file = event.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setProfileImage(e.target.result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Show preview immediately
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          // This is just for preview, the actual URL will come from Firebase
+          const previewUrl = e.target.result;
+          // We don't set the profile image here as it will be updated via the query
+        };
+        reader.readAsDataURL(file);
+
+        // Upload to Firebase Storage
+        await uploadImageMutation.mutateAsync(file);
+      } catch (error) {
+        console.error('Error uploading profile image:', error);
+        alert('Failed to upload profile image: ' + error.message);
+      }
     }
   };
 
@@ -190,6 +279,19 @@ export default function SettingsNew() {
   return (
     <div className="p-2">
       <h2 className="text-xl font-medium text-gray-900 dark:text-white mb-2">Settings</h2>
+
+      {isLoadingProfile && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow border border-gray-200 dark:border-gray-700 mb-2 p-4 flex items-center justify-center">
+          <div className="animate-spin h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full mr-2"></div>
+          <p className="text-sm text-gray-700 dark:text-gray-300">Loading your settings...</p>
+        </div>
+      )}
+
+      {profileError && (
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg overflow-hidden shadow border border-red-200 dark:border-red-700 mb-2 p-4">
+          <p className="text-sm text-red-700 dark:text-red-400">Error loading profile: {profileError.message}</p>
+        </div>
+      )}
 
       {/* Security Settings Card */}
       <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow border border-gray-200 dark:border-gray-700 mb-2">
@@ -471,6 +573,17 @@ export default function SettingsNew() {
                   <PencilIcon className="h-3 w-3 mr-1" />
                   Change
                 </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <button
+                onClick={handleSaveProfile}
+                className="flex items-center px-3 py-1.5 bg-primary-600 hover:bg-primary-700 rounded text-xs text-white"
+              >
+                <CheckIcon className="h-3 w-3 mr-1" />
+                Save Profile
+              </button>
               </div>
             </div>
           </div>

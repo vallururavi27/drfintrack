@@ -18,8 +18,10 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ExportButton from '../components/ui/ExportButton';
 import ProfileSelector from '../components/ui/ProfileSelector';
-import { transactionService } from '../services/transactionService';
-import { bankAccountService } from '../services/bankAccountService';
+// Import Firebase services instead of Supabase
+import { transactionService } from '../services/firebaseTransactionService';
+import { bankAccountService } from '../services/firebaseBankAccountService';
+import { categoryService } from '../services/firebaseCategoryService';
 import { getCategoryNames } from '../data/transactionCategories';
 
 // Categories for filtering
@@ -91,6 +93,15 @@ export default function Transactions() {
   } = useQuery({
     queryKey: ['bankAccounts'],
     queryFn: bankAccountService.getBankAccounts
+  });
+
+  // Fetch categories for the dropdown
+  const {
+    data: categoriesData = [],
+    isLoading: isLoadingCategories
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: categoryService.getCategories
   });
 
   // Create transaction mutation
@@ -171,7 +182,9 @@ export default function Transactions() {
     // Date range matching
     let matchesDateRange = true;
     if (selectedDateRange !== 'all') {
-      const transactionDate = new Date(transaction.transaction_date);
+      // Handle Firestore Timestamp or regular date
+      const transactionDate = transaction.transaction_date && transaction.transaction_date.toDate ?
+        transaction.transaction_date.toDate() : new Date(transaction.transaction_date);
       const today = new Date();
       let startDate;
 
@@ -376,11 +389,16 @@ export default function Transactions() {
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
               >
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
+                <option value="All Categories">All Categories</option>
+                {isLoadingCategories ? (
+                  <option value="" disabled>Loading categories...</option>
+                ) : (
+                  categoriesData.map((category) => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -395,11 +413,15 @@ export default function Transactions() {
                 onChange={(e) => setSelectedAccount(e.target.value)}
               >
                 <option value="All Accounts">All Accounts</option>
-                {bankAccounts.map((account) => (
-                  <option key={account.id} value={account.account_name}>
-                    {account.account_name} ({account.bank_name})
-                  </option>
-                ))}
+                {isLoadingAccounts ? (
+                  <option value="" disabled>Loading accounts...</option>
+                ) : (
+                  bankAccounts.map((account) => (
+                    <option key={account.id} value={account.name}>
+                      {account.name} ({account.bank_name})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -503,10 +525,12 @@ export default function Transactions() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(transaction.transaction_date).toLocaleDateString()}
+                      {transaction.transaction_date && transaction.transaction_date.toDate ?
+                        transaction.transaction_date.toDate().toLocaleDateString() :
+                        new Date(transaction.transaction_date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {transaction.bank_accounts?.account_name || 'Unknown'}
+                      {transaction.bank_accounts?.name || 'Unknown'}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-right ${
                       transaction.type === 'income'
@@ -520,10 +544,23 @@ export default function Transactions() {
                         className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 mr-3"
                         onClick={() => {
                           setCurrentTransaction(transaction);
+                          // Format transaction date for the form
+                          let formattedDate;
+                          if (transaction.transaction_date && transaction.transaction_date.toDate) {
+                            // Handle Firestore Timestamp
+                            formattedDate = transaction.transaction_date.toDate().toISOString().split('T')[0];
+                          } else if (typeof transaction.transaction_date === 'string') {
+                            // Handle string date
+                            formattedDate = transaction.transaction_date;
+                          } else {
+                            // Default to today
+                            formattedDate = new Date().toISOString().split('T')[0];
+                          }
+
                           setFormData({
                             description: transaction.description,
                             amount: transaction.amount,
-                            transaction_date: transaction.transaction_date,
+                            transaction_date: formattedDate,
                             category_id: transaction.category_id,
                             type: transaction.type,
                             account_id: transaction.account_id,
@@ -652,11 +689,15 @@ export default function Transactions() {
                               required
                             >
                               <option value="">Select Account</option>
-                              {bankAccounts.map((account) => (
-                                <option key={account.id} value={account.id}>
-                                  {account.account_name} ({account.bank_name})
-                                </option>
-                              ))}
+                              {isLoadingAccounts ? (
+                                <option value="" disabled>Loading accounts...</option>
+                              ) : (
+                                bankAccounts.map((account) => (
+                                  <option key={account.id} value={account.id}>
+                                    {account.name} ({account.bank_name})
+                                  </option>
+                                ))
+                              )}
                             </select>
                             {formErrors.account_id && (
                               <p className="mt-1 text-xs text-red-600">{formErrors.account_id}</p>
@@ -742,16 +783,17 @@ export default function Transactions() {
                             required
                           >
                             <option value="">Select Category</option>
-                            {/* We would need to fetch categories from the database */}
-                            <option value="1">Food</option>
-                            <option value="2">Transportation</option>
-                            <option value="3">Housing</option>
-                            <option value="4">Entertainment</option>
-                            <option value="5">Utilities</option>
-                            <option value="6">Healthcare</option>
-                            <option value="7">Shopping</option>
-                            <option value="8">Salary</option>
-                            <option value="9">Investment</option>
+                            {isLoadingCategories ? (
+                              <option value="" disabled>Loading categories...</option>
+                            ) : (
+                              categoriesData
+                                .filter(cat => formData.type === 'all' || cat.type === formData.type || !cat.type)
+                                .map(category => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))
+                            )}
                           </select>
                           {formErrors.category_id && (
                             <p className="mt-1 text-xs text-red-600">{formErrors.category_id}</p>

@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { incomeService } from '../services/firebaseIncomeService';
+import { categoryService } from '../services/firebaseCategoryService';
+import { bankAccountService } from '../services/firebaseBankAccountService';
 import {
   PlusIcon,
   PencilIcon,
@@ -13,25 +17,92 @@ import Button from '../components/ui/Button';
 import ExportButton from '../components/ui/ExportButton';
 
 export default function Income() {
-  // Sample income categories
-  const categories = [
-    'Salary', 'Freelance', 'Business', 'Investments',
-    'Rental', 'Dividends', 'Interest', 'Gifts',
-    'Refunds', 'Other'
-  ];
+  const queryClient = useQueryClient();
+  const [selectedPeriod, setSelectedPeriod] = useState('month');
 
-  // Income data
-  const [incomes, setIncomes] = useState([]);
+  // Fetch incomes
+  const {
+    data: incomes = [],
+    isLoading: isLoadingIncomes,
+    error: incomesError
+  } = useQuery({
+    queryKey: ['incomes'],
+    queryFn: incomeService.getIncomes
+  });
+
+  // Fetch income stats
+  const {
+    data: incomeStats,
+    isLoading: isLoadingStats
+  } = useQuery({
+    queryKey: ['incomeStats', selectedPeriod],
+    queryFn: () => incomeService.getIncomeStats(selectedPeriod)
+  });
+
+  // Fetch categories
+  const {
+    data: categoriesData = [],
+    isLoading: isLoadingCategories
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: categoryService.getCategories
+  });
+
+  // Fetch bank accounts
+  const {
+    data: bankAccounts = [],
+    isLoading: isLoadingAccounts
+  } = useQuery({
+    queryKey: ['bankAccounts'],
+    queryFn: bankAccountService.getBankAccounts
+  });
+
+  // Filter income categories to only show income categories
+  const incomeCategories = categoriesData
+    .filter(cat => cat.type === 'income' || !cat.type)
+    .map(cat => cat.name);
 
   // State for add/edit income modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentIncome, setCurrentIncome] = useState(null);
   const [formData, setFormData] = useState({
     description: '',
-    category: 'Salary',
+    category_id: '',
     amount: 0,
-    date: new Date().toISOString().split('T')[0],
-    source: ''
+    transaction_date: new Date().toISOString().split('T')[0],
+    account_id: '',
+    source: '',
+    notes: ''
+  });
+
+  // Add income mutation
+  const addIncomeMutation = useMutation({
+    mutationFn: incomeService.addIncome,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incomes'] });
+      queryClient.invalidateQueries({ queryKey: ['incomeStats'] });
+      queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
+    }
+  });
+
+  // Update income mutation
+  const updateIncomeMutation = useMutation({
+    mutationFn: ({ id, data }) => incomeService.updateIncome(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incomes'] });
+      queryClient.invalidateQueries({ queryKey: ['incomeStats'] });
+      queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
+    }
+  });
+
+  // Delete income mutation
+  const deleteIncomeMutation = useMutation({
+    mutationFn: incomeService.deleteIncome,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incomes'] });
+      queryClient.invalidateQueries({ queryKey: ['incomeStats'] });
+      queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
+    }
   });
 
   // Handle form input changes
@@ -48,10 +119,12 @@ export default function Income() {
     setCurrentIncome(null);
     setFormData({
       description: '',
-      category: 'Salary',
+      category_id: categoriesData.length > 0 ? categoriesData[0].id : '',
       amount: 0,
-      date: new Date().toISOString().split('T')[0],
-      source: ''
+      transaction_date: new Date().toISOString().split('T')[0],
+      account_id: bankAccounts.length > 0 ? bankAccounts[0].id : '',
+      source: '',
+      notes: ''
     });
     setIsModalOpen(true);
   };
@@ -59,56 +132,75 @@ export default function Income() {
   // Open modal for editing income
   const handleEditIncome = (income) => {
     setCurrentIncome(income);
+
+    // Format transaction date for the form
+    let formattedDate;
+    if (income.transaction_date && income.transaction_date.toDate) {
+      // Handle Firestore Timestamp
+      formattedDate = income.transaction_date.toDate().toISOString().split('T')[0];
+    } else if (typeof income.transaction_date === 'string') {
+      // Handle string date
+      formattedDate = income.transaction_date;
+    } else {
+      // Default to today
+      formattedDate = new Date().toISOString().split('T')[0];
+    }
+
     setFormData({
-      description: income.description,
-      category: income.category,
-      amount: income.amount,
-      date: income.date,
-      source: income.source
+      description: income.description || '',
+      category_id: income.category_id || '',
+      amount: income.amount || 0,
+      transaction_date: formattedDate,
+      account_id: income.account_id || '',
+      source: income.source || '',
+      notes: income.notes || ''
     });
     setIsModalOpen(true);
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (currentIncome) {
-      // Update existing income
-      setIncomes(incomes.map(inc =>
-        inc.id === currentIncome.id
-          ? { ...inc, ...formData }
-          : inc
-      ));
-    } else {
-      // Add new income
-      const newIncome = {
-        id: Date.now(),
-        ...formData
-      };
-      setIncomes([...incomes, newIncome]);
-    }
+    try {
+      if (currentIncome) {
+        // Update existing income
+        await updateIncomeMutation.mutateAsync({
+          id: currentIncome.id,
+          data: formData
+        });
+      } else {
+        // Add new income
+        await addIncomeMutation.mutateAsync(formData);
+      }
 
-    setIsModalOpen(false);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving income:', error);
+      alert('Error saving income: ' + error.message);
+    }
   };
 
   // Handle income deletion
-  const handleDeleteIncome = (id) => {
+  const handleDeleteIncome = async (id) => {
     if (window.confirm('Are you sure you want to delete this income?')) {
-      setIncomes(incomes.filter(inc => inc.id !== id));
+      try {
+        await deleteIncomeMutation.mutateAsync(id);
+      } catch (error) {
+        console.error('Error deleting income:', error);
+        alert('Error deleting income: ' + error.message);
+      }
     }
   };
 
   // Calculate total income
-  const totalIncome = incomes.reduce((sum, income) => sum + income.amount, 0);
+  const totalIncome = incomeStats?.totalIncome || incomes.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0);
 
-  // Group incomes by category for the chart
-  const incomesByCategory = categories.map(category => {
-    const amount = incomes
-      .filter(income => income.category === category)
-      .reduce((sum, income) => sum + income.amount, 0);
-    return { category, amount };
-  }).filter(item => item.amount > 0);
+  // Get incomes by category for the chart
+  const incomesByCategory = incomeStats?.categoryData || [];
+
+  // Get top income category
+  const topCategory = incomesByCategory.length > 0 ? incomesByCategory[0].name : 'None';
 
   return (
     <div className="space-y-3">
@@ -137,11 +229,16 @@ export default function Income() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-md font-medium text-gray-900 dark:text-white">Income Summary</h2>
           <div className="flex space-x-2">
-            <select className="input text-xs py-1 px-2">
-              <option>This Month</option>
-              <option>Last Month</option>
-              <option>Last 3 Months</option>
-              <option>This Year</option>
+            <select
+              className="input text-xs py-1 px-2"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+            >
+              <option value="month">This Month</option>
+              <option value="3months">Last 3 Months</option>
+              <option value="6months">Last 6 Months</option>
+              <option value="year">This Year</option>
+              <option value="all">All Time</option>
             </select>
           </div>
         </div>
@@ -183,9 +280,7 @@ export default function Income() {
               <div className="ml-3">
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Top Source</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {incomesByCategory.length > 0
-                    ? incomesByCategory.sort((a, b) => b.amount - a.amount)[0].category
-                    : 'None'}
+                  {isLoadingStats ? 'Loading...' : topCategory}
                 </p>
               </div>
             </div>
@@ -239,7 +334,25 @@ export default function Income() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
-              {incomes.length > 0 ? (
+              {isLoadingIncomes ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <ArrowPathIcon className="h-12 w-12 text-gray-400 mb-3 animate-spin" />
+                      <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">Loading incomes...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : incomesError ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <p className="text-red-500 dark:text-red-400 text-lg font-medium mb-1">Error loading incomes</p>
+                      <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">{incomesError.message}</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : incomes.length > 0 ? (
                 incomes.map((income) => (
                   <tr key={income.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                     <td className="px-4 py-2 whitespace-nowrap">
@@ -247,17 +360,19 @@ export default function Income() {
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                        {income.category}
+                        {income.categories?.name || 'Uncategorized'}
                       </span>
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                      {income.date}
+                      {income.transaction_date && income.transaction_date.toDate ?
+                        income.transaction_date.toDate().toLocaleDateString() :
+                        new Date(income.transaction_date).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                      {income.source}
+                      {income.source || (income.bank_accounts ? income.bank_accounts.name : 'Unknown')}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-right text-green-600 dark:text-green-400">
-                      ₹{income.amount.toLocaleString()}
+                      ₹{parseFloat(income.amount).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-right text-xs font-medium">
                       <button
@@ -333,15 +448,23 @@ export default function Income() {
                             Category
                           </label>
                           <select
-                            name="category"
-                            id="category"
-                            value={formData.category}
+                            name="category_id"
+                            id="category_id"
+                            value={formData.category_id}
                             onChange={handleInputChange}
                             className="input mt-1 block w-full text-sm"
                           >
-                            {categories.map(category => (
-                              <option key={category} value={category}>{category}</option>
-                            ))}
+                            {isLoadingCategories ? (
+                              <option value="" disabled>Loading categories...</option>
+                            ) : (
+                              categoriesData
+                                .filter(cat => cat.type === 'income' || !cat.type)
+                                .map(category => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))
+                            )}
                           </select>
                         </div>
                         <div>
@@ -365,14 +488,14 @@ export default function Income() {
                           </div>
                         </div>
                         <div>
-                          <label htmlFor="date" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <label htmlFor="transaction_date" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             Date
                           </label>
                           <input
                             type="date"
-                            name="date"
-                            id="date"
-                            value={formData.date}
+                            name="transaction_date"
+                            id="transaction_date"
+                            value={formData.transaction_date}
                             onChange={handleInputChange}
                             className="input mt-1 block w-full text-sm"
                             required
@@ -391,6 +514,43 @@ export default function Income() {
                             className="input mt-1 block w-full text-sm"
                             required
                           />
+                        </div>
+                        <div>
+                          <label htmlFor="account_id" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Bank Account
+                          </label>
+                          <select
+                            name="account_id"
+                            id="account_id"
+                            value={formData.account_id}
+                            onChange={handleInputChange}
+                            className="input mt-1 block w-full text-sm"
+                          >
+                            {isLoadingAccounts ? (
+                              <option value="" disabled>Loading accounts...</option>
+                            ) : bankAccounts.length === 0 ? (
+                              <option value="" disabled>No accounts available</option>
+                            ) : (
+                              bankAccounts.map(account => (
+                                <option key={account.id} value={account.id}>
+                                  {account.name} ({account.bank_name})
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="notes" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Notes (Optional)
+                          </label>
+                          <textarea
+                            name="notes"
+                            id="notes"
+                            value={formData.notes}
+                            onChange={handleInputChange}
+                            className="input mt-1 block w-full text-sm"
+                            rows="2"
+                          ></textarea>
                         </div>
                       </div>
                     </div>

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardService } from '../services/firebaseDashboardService';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowDownIcon,
@@ -28,68 +30,78 @@ import {
   Area
 } from 'recharts';
 
-// Sample data for charts
-const monthlyData = [
-  { name: 'Jan', income: 4000, expenses: 2400 },
-  { name: 'Feb', income: 3000, expenses: 1398 },
-  { name: 'Mar', income: 2000, expenses: 9800 },
-  { name: 'Apr', income: 2780, expenses: 3908 },
-  { name: 'May', income: 1890, expenses: 4800 },
-  { name: 'Jun', income: 2390, expenses: 3800 },
-];
-
-const expenseData = [
-  { name: 'Housing', value: 35 },
-  { name: 'Food', value: 20 },
-  { name: 'Transportation', value: 15 },
-  { name: 'Entertainment', value: 10 },
-  { name: 'Utilities', value: 10 },
-  { name: 'Others', value: 10 },
-];
-
+// Default colors for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
-
-// Sample stats
-const stats = [
-  {
-    name: 'Total Balance',
-    value: '₹0',
-    change: '0%',
-    changeType: 'neutral',
-    icon: WalletIcon,
-    iconBg: 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300',
-  },
-  {
-    name: 'Monthly Income',
-    value: '₹0',
-    change: '0%',
-    changeType: 'neutral',
-    icon: ArrowUpIcon,
-    iconBg: 'bg-success-100 text-success-600 dark:bg-success-900 dark:text-success-300',
-  },
-  {
-    name: 'Monthly Expenses',
-    value: '₹0',
-    change: '0%',
-    changeType: 'neutral',
-    icon: ArrowDownIcon,
-    iconBg: 'bg-danger-100 text-danger-600 dark:bg-danger-900 dark:text-danger-300',
-  },
-  {
-    name: 'Investments',
-    value: '₹0',
-    change: '0%',
-    changeType: 'neutral',
-    icon: ArrowTrendingUpIcon,
-    iconBg: 'bg-secondary-100 text-secondary-600 dark:bg-secondary-900 dark:text-secondary-300',
-  },
-];
-
-// Sample recent transactions
-const recentTransactions = [];
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState([]);
+  const [monthlyData, setMonthlyData] = useState([]);
+  const [expenseData, setExpenseData] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+
+  // Fetch dashboard data
+  const { data: dashboardData, isLoading, error } = useQuery({
+    queryKey: ['dashboardData'],
+    queryFn: dashboardService.getDashboardData,
+    refetchOnWindowFocus: false
+  });
+
+  // Process dashboard data when it's available
+  useEffect(() => {
+    if (dashboardData) {
+      // Set bank accounts
+      setBankAccounts(dashboardData.bankAccounts || []);
+
+      // Set recent transactions
+      setRecentTransactions(dashboardData.recentTransactions || []);
+
+      // Set monthly data for charts
+      setMonthlyData(dashboardData.monthlyData || []);
+
+      // Set expense data for pie chart
+      setExpenseData(dashboardData.expenseCategoriesData || []);
+
+      // Format stats
+      const formattedStats = [
+        {
+          name: 'Total Balance',
+          value: `₹${dashboardData.totalBalance.toLocaleString()}`,
+          change: '0%',
+          changeType: 'neutral',
+          icon: WalletIcon,
+          iconBg: 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300',
+        },
+        {
+          name: 'Monthly Income',
+          value: `₹${dashboardData.currentMonthIncome.toLocaleString()}`,
+          change: `${Math.abs(dashboardData.incomeChange).toFixed(1)}%`,
+          changeType: dashboardData.incomeChange > 0 ? 'increase' : dashboardData.incomeChange < 0 ? 'decrease' : 'neutral',
+          icon: ArrowUpIcon,
+          iconBg: 'bg-success-100 text-success-600 dark:bg-success-900 dark:text-success-300',
+        },
+        {
+          name: 'Monthly Expenses',
+          value: `₹${dashboardData.currentMonthExpenses.toLocaleString()}`,
+          change: `${Math.abs(dashboardData.expenseChange).toFixed(1)}%`,
+          changeType: dashboardData.expenseChange > 0 ? 'increase' : dashboardData.expenseChange < 0 ? 'decrease' : 'neutral',
+          icon: ArrowDownIcon,
+          iconBg: 'bg-danger-100 text-danger-600 dark:bg-danger-900 dark:text-danger-300',
+        },
+        {
+          name: 'Investments',
+          value: `₹${dashboardData.totalInvestments.toLocaleString()}`,
+          change: '0%',
+          changeType: 'neutral',
+          icon: ArrowTrendingUpIcon,
+          iconBg: 'bg-secondary-100 text-secondary-600 dark:bg-secondary-900 dark:text-secondary-300',
+        },
+      ];
+
+      setStats(formattedStats);
+    }
+  }, [dashboardData]);
 
   const handleAddTransaction = () => {
     navigate('/transactions', { state: { openTransactionModal: true } });
@@ -203,33 +215,49 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-4 mt-2">
-            <div className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
-              <div className="flex items-center">
-                <BuildingLibraryIcon className="h-5 w-5 text-gray-500 mr-2" />
-                <div>
-                  <p className="text-sm font-medium dark:text-white">HDFC Bank</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Savings account</p>
+            {isLoading ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading accounts...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-red-500 dark:text-red-400">Error loading accounts</p>
+              </div>
+            ) : bankAccounts.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400">No bank accounts found</p>
+                <button
+                  className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 mt-2"
+                  onClick={() => navigate('/banking/accounts')}
+                >
+                  Add an account
+                </button>
+              </div>
+            ) : (
+              bankAccounts.slice(0, 3).map(account => (
+                <div key={account.id} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                  <div className="flex items-center">
+                    <BuildingLibraryIcon className="h-5 w-5 text-gray-500 mr-2" />
+                    <div>
+                      <p className="text-sm font-medium dark:text-white">{account.bank_name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{account.name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium dark:text-white">₹{parseFloat(account.balance || 0).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Balance</p>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium dark:text-white">₹0</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Available</p>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
-              <div className="flex items-center">
-                <BuildingLibraryIcon className="h-5 w-5 text-gray-500 mr-2" />
-                <div>
-                  <p className="text-sm font-medium dark:text-white">SBI Bank</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Current account</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium dark:text-white">₹0</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Balance</p>
-              </div>
-            </div>
+              ))
+            )}
+            {!isLoading && !error && bankAccounts.length > 0 && (
+              <button
+                className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 w-full text-center mt-2"
+                onClick={() => navigate('/banking/accounts')}
+              >
+                View all accounts
+              </button>
+            )}
           </div>
         </Card>
       </div>
@@ -331,11 +359,49 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="px-4 py-2 whitespace-nowrap" colSpan="4">
-                  <div className="text-center text-xs text-gray-500 dark:text-gray-400">No transactions yet</div>
-                </td>
-              </tr>
+              {isLoading ? (
+                <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-4 py-2 whitespace-nowrap" colSpan="4">
+                    <div className="text-center text-xs text-gray-500 dark:text-gray-400">Loading transactions...</div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-4 py-2 whitespace-nowrap" colSpan="4">
+                    <div className="text-center text-xs text-red-500 dark:text-red-400">Error loading transactions</div>
+                  </td>
+                </tr>
+              ) : recentTransactions.length === 0 ? (
+                <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-4 py-2 whitespace-nowrap" colSpan="4">
+                    <div className="text-center text-xs text-gray-500 dark:text-gray-400">No transactions yet</div>
+                  </td>
+                </tr>
+              ) : (
+                recentTransactions.map(transaction => (
+                  <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{transaction.description}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{transaction.bank_accounts?.name || 'Unknown'}</div>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{transaction.categories?.name || 'Uncategorized'}</div>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {transaction.transaction_date && transaction.transaction_date.toDate ?
+                          transaction.transaction_date.toDate().toLocaleDateString() :
+                          new Date(transaction.transaction_date).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-right">
+                      <div className={`text-sm font-medium ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {transaction.type === 'income' ? '+' : '-'}₹{parseFloat(transaction.amount).toLocaleString()}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

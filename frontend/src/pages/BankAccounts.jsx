@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { bankAccountService } from '../services/bankAccountService';
+// Import Firebase bank account service instead of Supabase
+import { bankAccountService } from '../services/firebaseBankAccountService';
 import { PlusIcon, PencilIcon, TrashIcon, BanknotesIcon, CreditCardIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import UpiLinkForm from '../components/banking/UpiLinkForm';
@@ -321,7 +322,7 @@ const BankAccounts = () => {
   };
 
   // Calculate total balance
-  const totalBalance = accounts.reduce((sum, account) => sum + account.current_balance, 0);
+  const totalBalance = accounts.reduce((sum, account) => sum + (parseFloat(account.balance) || 0), 0);
 
   return (
     <div className="container mx-auto px-4 py-8">

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { analyticsService } from '../services/firebaseAnalyticsService';
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -30,22 +32,48 @@ import {
   Area
 } from 'recharts';
 
-// Empty data for analytics
-const monthlyData = [];
-
-const categoryData = [];
-
-const netWorthData = [];
-
-const savingsRateData = [];
-
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
 
 export default function Analytics() {
   const [selectedProfile, setSelectedProfile] = useState('all');
   const [showShared, setShowShared] = useState(true);
   const [timeRange, setTimeRange] = useState('6m'); // 1m, 3m, 6m, 1y, all
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Income vs Expenses data query
+  const {
+    data: monthlyData = [],
+    isLoading: isLoadingMonthlyData
+  } = useQuery({
+    queryKey: ['analytics', 'income-expenses', timeRange],
+    queryFn: () => analyticsService.getIncomeVsExpensesData(timeRange)
+  });
+
+  // Expense breakdown query
+  const {
+    data: categoryData = [],
+    isLoading: isLoadingCategoryData
+  } = useQuery({
+    queryKey: ['analytics', 'expense-breakdown', timeRange],
+    queryFn: () => analyticsService.getExpenseBreakdown(timeRange)
+  });
+
+  // Savings rate query
+  const {
+    data: savingsRateData = [],
+    isLoading: isLoadingSavingsRateData
+  } = useQuery({
+    queryKey: ['analytics', 'savings-rate', timeRange],
+    queryFn: () => analyticsService.getSavingsRateData(timeRange)
+  });
+
+  // Net worth query
+  const {
+    data: netWorthData = [],
+    isLoading: isLoadingNetWorthData
+  } = useQuery({
+    queryKey: ['analytics', 'net-worth', timeRange],
+    queryFn: () => analyticsService.getNetWorthData(timeRange)
+  });
 
   // Calculate total income, expenses, and savings
   const totalIncome = monthlyData.length > 0 ? monthlyData.reduce((sum, month) => sum + month.income, 0) : 0;
@@ -57,6 +85,9 @@ export default function Analytics() {
   const currentNetWorth = netWorthData.length > 0 ? netWorthData[netWorthData.length - 1].netWorth : 0;
   const previousNetWorth = netWorthData.length > 1 ? netWorthData[netWorthData.length - 2].netWorth : 0;
   const netWorthChange = previousNetWorth > 0 ? ((currentNetWorth - previousNetWorth) / previousNetWorth) * 100 : 0;
+
+  // Determine if any data is loading
+  const isLoading = isLoadingMonthlyData || isLoadingCategoryData || isLoadingSavingsRateData || isLoadingNetWorthData;
 
   return (
     <div className="space-y-6">
@@ -171,7 +202,12 @@ export default function Analytics() {
       {/* Income vs Expenses Chart */}
       <Card>
         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Income vs Expenses</h2>
-        {monthlyData.length > 0 ? (
+        {isLoadingMonthlyData ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
+            <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Loading data...</p>
+          </div>
+        ) : monthlyData.length > 0 ? (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -202,7 +238,12 @@ export default function Analytics() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Expense Breakdown</h2>
-          {categoryData.length > 0 ? (
+          {isLoadingCategoryData ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Loading data...</p>
+            </div>
+          ) : categoryData.length > 0 ? (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -236,7 +277,12 @@ export default function Analytics() {
 
         <Card>
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Savings Rate Trend</h2>
-          {savingsRateData.length > 0 ? (
+          {isLoadingSavingsRateData ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Loading data...</p>
+            </div>
+          ) : savingsRateData.length > 0 ? (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
@@ -265,7 +311,12 @@ export default function Analytics() {
       {/* Net Worth Trend */}
       <Card>
         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Net Worth Trend</h2>
-        {netWorthData.length > 0 ? (
+        {isLoadingNetWorthData ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
+            <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Loading data...</p>
+          </div>
+        ) : netWorthData.length > 0 ? (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
@@ -295,7 +346,12 @@ export default function Analytics() {
       {/* Top Spending Categories */}
       <Card>
         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Top Spending Categories</h2>
-        {categoryData.length > 0 ? (
+        {isLoadingCategoryData ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
+            <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Loading data...</p>
+          </div>
+        ) : categoryData.length > 0 ? (
           <div className="space-y-4">
             {categoryData.slice(0, 5).map((category, index) => (
               <div key={category.name} className="flex items-center">

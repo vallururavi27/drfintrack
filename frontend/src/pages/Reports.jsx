@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { reportService } from '../services/firebaseReportService';
 import {
   DocumentTextIcon,
   ArrowDownTrayIcon,
@@ -27,18 +29,75 @@ import {
 } from 'recharts';
 
 export default function Reports() {
-  // Empty data for reports
-  const monthlyData = [];
-
-  const expenseCategories = [];
-
-  const incomeCategories = [];
-
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
-  // State for report type
+  // State for report type and time frame
   const [reportType, setReportType] = useState('income-expense');
   const [timeFrame, setTimeFrame] = useState('monthly');
+  const [customRange, setCustomRange] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Income vs Expense data query
+  const {
+    data: monthlyData = [],
+    isLoading: isLoadingMonthlyData,
+    refetch: refetchMonthlyData
+  } = useQuery({
+    queryKey: ['reports', 'income-expense', timeFrame, customRange],
+    queryFn: () => reportService.getIncomeVsExpenseData(timeFrame, customRange),
+    enabled: reportType === 'income-expense' || reportType === 'savings-trend'
+  });
+
+  // Expense breakdown query
+  const {
+    data: expenseCategories = [],
+    isLoading: isLoadingExpenseCategories,
+    refetch: refetchExpenseCategories
+  } = useQuery({
+    queryKey: ['reports', 'expense-breakdown', timeFrame, customRange],
+    queryFn: () => reportService.getExpenseBreakdown(timeFrame, customRange),
+    enabled: reportType === 'expense-breakdown'
+  });
+
+  // Income breakdown query
+  const {
+    data: incomeCategories = [],
+    isLoading: isLoadingIncomeCategories,
+    refetch: refetchIncomeCategories
+  } = useQuery({
+    queryKey: ['reports', 'income-breakdown', timeFrame, customRange],
+    queryFn: () => reportService.getIncomeBreakdown(timeFrame, customRange),
+    enabled: reportType === 'income-breakdown'
+  });
+
+  // Savings trend query
+  const {
+    data: savingsData = [],
+    isLoading: isLoadingSavingsData,
+    refetch: refetchSavingsData
+  } = useQuery({
+    queryKey: ['reports', 'savings-trend', timeFrame, customRange],
+    queryFn: () => reportService.getSavingsTrend(timeFrame, customRange),
+    enabled: reportType === 'savings-trend'
+  });
+
+  // Handle generate report button click
+  const handleGenerateReport = () => {
+    setIsGenerating(true);
+
+    // Refetch the appropriate data based on report type
+    if (reportType === 'income-expense') {
+      refetchMonthlyData();
+    } else if (reportType === 'expense-breakdown') {
+      refetchExpenseCategories();
+    } else if (reportType === 'income-breakdown') {
+      refetchIncomeCategories();
+    } else if (reportType === 'savings-trend') {
+      refetchSavingsData();
+    }
+
+    setIsGenerating(false);
+  };
 
   return (
     <div className="space-y-3">
@@ -106,8 +165,13 @@ export default function Reports() {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="primary" size="sm">
-              Generate Report
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleGenerateReport}
+              disabled={isGenerating}
+            >
+              {isGenerating ? 'Generating...' : 'Generate Report'}
             </Button>
             <ExportButton
               data={reportType === 'expense-breakdown' ? expenseCategories :
@@ -144,7 +208,12 @@ export default function Reports() {
               />
             )}
           </div>
-          {monthlyData.length > 0 ? (
+          {isLoadingMonthlyData ? (
+            <div className="py-12 text-center">
+              <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">Loading data...</p>
+            </div>
+          ) : monthlyData.length > 0 ? (
             <>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -182,6 +251,9 @@ export default function Reports() {
               <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">No data available</p>
               <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">Add income and expense transactions to generate reports</p>
+              <Button onClick={handleGenerateReport} size="sm" variant="primary">
+                Generate Report
+              </Button>
             </div>
           )}
         </Card>
@@ -204,7 +276,12 @@ export default function Reports() {
               />
             )}
           </div>
-          {expenseCategories.length > 0 ? (
+          {isLoadingExpenseCategories ? (
+            <div className="py-12 text-center">
+              <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">Loading data...</p>
+            </div>
+          ) : expenseCategories.length > 0 ? (
             <>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -232,7 +309,7 @@ export default function Reports() {
                 <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Top Expense Category</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {expenseCategories.sort((a, b) => b.value - a.value)[0].name} ({expenseCategories.sort((a, b) => b.value - a.value)[0].value}%)
+                    {expenseCategories[0].name} ({expenseCategories[0].value}%)
                   </p>
                 </div>
               </div>
@@ -242,6 +319,9 @@ export default function Reports() {
               <ChartPieIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">No expense data available</p>
               <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">Add expense transactions to generate reports</p>
+              <Button onClick={handleGenerateReport} size="sm" variant="primary">
+                Generate Report
+              </Button>
             </div>
           )}
         </Card>
@@ -264,7 +344,12 @@ export default function Reports() {
               />
             )}
           </div>
-          {incomeCategories.length > 0 ? (
+          {isLoadingIncomeCategories ? (
+            <div className="py-12 text-center">
+              <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">Loading data...</p>
+            </div>
+          ) : incomeCategories.length > 0 ? (
             <>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -292,7 +377,7 @@ export default function Reports() {
                 <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Primary Income Source</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {incomeCategories.sort((a, b) => b.value - a.value)[0].name} ({incomeCategories.sort((a, b) => b.value - a.value)[0].value}%)
+                    {incomeCategories[0].name} ({incomeCategories[0].value}%)
                   </p>
                 </div>
               </div>
@@ -302,6 +387,9 @@ export default function Reports() {
               <ChartPieIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">No income data available</p>
               <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">Add income transactions to generate reports</p>
+              <Button onClick={handleGenerateReport} size="sm" variant="primary">
+                Generate Report
+              </Button>
             </div>
           )}
         </Card>
@@ -327,15 +415,17 @@ export default function Reports() {
               />
             )}
           </div>
-          {monthlyData.length > 0 ? (
+          {isLoadingSavingsData ? (
+            <div className="py-12 text-center">
+              <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">Loading data...</p>
+            </div>
+          ) : savingsData.length > 0 ? (
             <>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={monthlyData.map(item => ({
-                      name: item.name,
-                      savings: item.income - item.expenses
-                    }))}
+                    data={savingsData}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -358,13 +448,13 @@ export default function Reports() {
                 <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Savings</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    ₹{monthlyData.reduce((sum, item) => sum + (item.income - item.expenses), 0).toLocaleString()}
+                    ₹{savingsData.reduce((sum, item) => sum + item.savings, 0).toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Average Monthly Savings</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    ₹{Math.round(monthlyData.reduce((sum, item) => sum + (item.income - item.expenses), 0) / monthlyData.length).toLocaleString()}
+                    ₹{Math.round(savingsData.reduce((sum, item) => sum + item.savings, 0) / savingsData.length).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -374,6 +464,9 @@ export default function Reports() {
               <ArrowTrendingUpIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400 text-lg font-medium mb-1">No savings data available</p>
               <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">Add income and expense transactions to generate savings reports</p>
+              <Button onClick={handleGenerateReport} size="sm" variant="primary">
+                Generate Report
+              </Button>
             </div>
           )}
         </Card>
